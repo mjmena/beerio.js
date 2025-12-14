@@ -14,7 +14,17 @@
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [
           python3
+          nodePackages.vite
         ];
+      };
+
+      packages.${system}.default = pkgs.writeShellScriptBin "beerio-server" ''
+        ${pkgs.nodePackages.vite}/bin/vite "$@"
+      '';
+
+      apps.${system}.default = {
+        type = "app";
+        program = "${self.packages.${system}.default}/bin/beerio-server";
       };
     };
 }
