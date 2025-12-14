@@ -5,7 +5,8 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
   };
 
-  outputs = { self, nixpkgs }:
+  outputs =
+    { self, nixpkgs }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
@@ -13,18 +14,15 @@
     {
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [
-          python3
-          nodePackages.vite
+          nodejs
         ];
       };
 
       packages.${system}.default = pkgs.writeShellScriptBin "beerio-server" ''
-        ${pkgs.nodePackages.vite}/bin/vite "$@"
+        if [ ! -d "node_modules" ]; then
+          ${pkgs.nodejs}/bin/npm install
+        fi
+        ${pkgs.nodejs}/bin/npm run dev -- "$@"
       '';
-
-      apps.${system}.default = {
-        type = "app";
-        program = "${self.packages.${system}.default}/bin/beerio-server";
-      };
     };
 }

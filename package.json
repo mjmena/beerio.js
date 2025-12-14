@@ -1,0 +1,11 @@
+{
+    "name": "beerio.js",
+    "version": "1.0.0",
+    "description": "Beerio Kart Mission Randomizer",
+    "scripts": {
+        "dev": "vite"
+    },
+    "devDependencies": {
+        "vite": "^5.0.0"
+    }
+}
