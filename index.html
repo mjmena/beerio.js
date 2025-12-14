@@ -17,6 +17,98 @@
                  But for now, app.js will handle initial load/check. -->
         </div>
     </div>
+
+    <!-- Templates -->
+    <template id="solo-layout-template">
+        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
+                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
+                <div class="font-mono text-sm js-seed-display">Seed: </div>
+                <button class="btn text-sm js-reroll-btn">Reroll</button>
+            </div>
+            <div class="flex flex-col md:flex-row justify-evenly items-start p-4 gap-4 js-mission-container">
+                <!-- Mission Cards go here -->
+            </div>
+        </div>
+    </template>
+
+    <template id="coop-layout-template">
+        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
+                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
+                <div class="font-mono text-sm js-seed-display">Seed: </div>
+                <button class="btn text-sm js-reroll-btn">Reroll</button>
+            </div>
+            <div class="flex flex-col items-center justify-center p-4 js-mission-container">
+                <!-- Mission Card goes here -->
+            </div>
+        </div>
+    </template>
+
+    <template id="randomizer-layout-template">
+        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
+                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
+                <div class="font-mono text-sm js-seed-display">Seed: </div>
+                <button class="btn text-sm js-reroll-btn">Reroll</button>
+            </div>
+            <div class="flex flex-col items-center justify-center p-4 js-loadout-container">
+                <!-- Loadout goes here -->
+            </div>
+        </div>
+    </template>
+
+    <template id="mission-card-template">
+        <div class="card flex flex-col items-center">
+            <div class="text-xl font-bold mb-2 text-center js-mission-name"></div>
+            <div class="text-md mb-2 text-center js-mission-desc"></div>
+            <div class="text-left mt-2 js-mission-details hidden">
+                <h3 class="text-sm font-semibold text-gray-600">Details</h3>
+                <ul class="list-disc pl-5 text-sm js-details-list"></ul>
+            </div>
+            <div class="js-extra-content w-full"></div>
+        </div>
+    </template>
+
+    <template id="random-item-template">
+        <div class="p-2 flex justify-center"><img src="" class="img-contain w-32 h-32 js-item-img" alt=""></div>
+    </template>
+
+    <template id="random-loadout-template">
+        <div class="flex flex-wrap justify-center gap-2 mt-2">
+            <div class="flex flex-col items-center">
+                <img src="" class="w-24 h-24 object-scale-down js-char-img">
+                <span class="text-xs js-char-name"></span>
+            </div>
+            <div class="flex flex-col items-center">
+                <img src="" class="w-24 h-24 object-scale-down js-kart-img">
+                <span class="text-xs js-kart-name"></span>
+            </div>
+            <div class="flex flex-col items-center">
+                <img src="" class="w-24 h-24 object-scale-down js-wheel-img">
+                <span class="text-xs js-wheel-name"></span>
+            </div>
+            <div class="flex flex-col items-center">
+                <img src="" class="w-24 h-24 object-scale-down js-glider-img">
+                <span class="text-xs js-glider-name"></span>
+            </div>
+        </div>
+    </template>
+
+    <template id="random-number-template">
+        <div class="text-4xl font-bold p-4 js-number"></div>
+    </template>
+
+    <template id="nested-mission-template">
+        <div class="mt-4 border-t pt-4 w-full">
+            <h4 class="font-bold text-red-600">Single Race Mission:</h4>
+            <div class="js-nested-mission-container"></div>
+        </div>
+    </template>
+
     <script src="app.js"></script>
 </body>
 
