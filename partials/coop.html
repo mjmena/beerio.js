@@ -5,10 +5,57 @@
         <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content" hx-push-url="?view=splash"
           hx-swap="innerHTML">Back</button>
         <div class="font-mono text-sm js-seed-display">Seed: </div>
-        <button class="btn text-sm js-reroll-btn">Reroll</button>
+        <div style="width: 80px;"></div> <!-- Spacer -->
       </div>
-      <div class="flex flex-col items-center justify-center p-4 js-mission-container">
+      <div class="flex flex-col items-center justify-center p-4 js-mission-container flex-grow">
         <!-- Mission Card goes here -->
+      </div>
+
+      <!-- 3D Dice Reroll -->
+      <div class="py-4">
+        <div class="scene js-dice-scene" title="Reroll">
+          <div class="cube js-dice-cube">
+            <!-- 1 (Front) -->
+            <div class="cube__face cube__face--front face-1">
+              <div class="pip"></div>
+            </div>
+            <!-- 6 (Back) -->
+            <div class="cube__face cube__face--back face-6">
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+            </div>
+            <!-- 3 (Right) -->
+            <div class="cube__face cube__face--right face-3">
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+            </div>
+            <!-- 4 (Left) -->
+            <div class="cube__face cube__face--left face-4">
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+            </div>
+            <!-- 5 (Top) -->
+            <div class="cube__face cube__face--top face-5">
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+              <div class="pip"></div>
+            </div>
+            <!-- 2 (Bottom) -->
+            <div class="cube__face cube__face--bottom face-2">
+              <div class="pip"></div>
+              <div class="pip"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </template>
@@ -25,13 +72,33 @@
       // Set Seed
       layout.querySelector('.js-seed-display').textContent = `Seed: ${B.state.seed}`;
 
-      // Set Reroll
-      layout.querySelector('.js-reroll-btn').onclick = () => {
-        window.location.href = `?view=coop&seed=${B.utils.generateRandomString()}`;
-      };
-
       const missionContainer = layout.querySelector('.js-mission-container');
       missionContainer.appendChild(B.helpers.renderMissionCard(mission, B.state.seed, 1));
+
+      // Dice Logic
+      const scene = layout.querySelector('.js-dice-scene');
+      const cube = layout.querySelector('.js-dice-cube');
+
+      scene.onclick = () => {
+        if (cube.classList.contains('is-spinning')) return;
+        cube.classList.add('is-spinning');
+
+        // Wait for a bit of spinning, then reload content via HTMX
+        setTimeout(() => {
+          // 1. New Seed
+          const newSeed = B.utils.generateRandomString();
+          B.state.seed = newSeed;
+
+          // 2. Update URL
+          const url = new URL(window.location);
+          url.searchParams.set('seed', newSeed);
+          window.history.pushState({}, '', url);
+
+          // 3. Reload Page Content
+          // This fetches the partial again and swaps it into #app-content
+          htmx.ajax('GET', 'partials/coop.html', '#app-content');
+        }, 800);
+      };
 
       container.innerHTML = '';
       container.appendChild(layout);
