@@ -1,4 +1,41 @@
-<!-- This container will be populated by app.js after swap -->
 <div id="coop-container" class="h-full w-full">
-  <div class="p-4 text-center">Loading Co-op Missions...</div>
+  <template id="coop-layout-template">
+    <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+      <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+        <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content" hx-push-url="?view=splash"
+          hx-swap="innerHTML">Back</button>
+        <div class="font-mono text-sm js-seed-display">Seed: </div>
+        <button class="btn text-sm js-reroll-btn">Reroll</button>
+      </div>
+      <div class="flex flex-col items-center justify-center p-4 js-mission-container">
+        <!-- Mission Card goes here -->
+      </div>
+    </div>
+  </template>
+  <script>
+    (function () {
+      const B = window.Beerio;
+      const container = document.getElementById('coop-container');
+      const rng = B.utils.createRng(B.state.seed);
+      const shuffledMissions = B.utils.shuffle([...B.state.missions.coop_granprix], rng);
+      const mission = shuffledMissions[0];
+
+      const layout = B.helpers.instantiateTemplate('coop-layout-template');
+
+      // Set Seed
+      layout.querySelector('.js-seed-display').textContent = `Seed: ${B.state.seed}`;
+
+      // Set Reroll
+      layout.querySelector('.js-reroll-btn').onclick = () => {
+        window.location.href = `?view=coop&seed=${B.utils.generateRandomString()}`;
+      };
+
+      const missionContainer = layout.querySelector('.js-mission-container');
+      missionContainer.appendChild(B.helpers.renderMissionCard(mission, B.state.seed, 1));
+
+      container.innerHTML = '';
+      container.appendChild(layout);
+      htmx.process(container);
+    })();
+  </script>
 </div>

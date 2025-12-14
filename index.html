@@ -19,47 +19,7 @@
     </div>
 
     <!-- Templates -->
-    <template id="solo-layout-template">
-        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
-            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
-                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
-                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
-                <div class="font-mono text-sm js-seed-display">Seed: </div>
-                <button class="btn text-sm js-reroll-btn">Reroll</button>
-            </div>
-            <div class="flex flex-col md:flex-row justify-evenly items-start p-4 gap-4 js-mission-container">
-                <!-- Mission Cards go here -->
-            </div>
-        </div>
-    </template>
 
-    <template id="coop-layout-template">
-        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
-            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
-                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
-                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
-                <div class="font-mono text-sm js-seed-display">Seed: </div>
-                <button class="btn text-sm js-reroll-btn">Reroll</button>
-            </div>
-            <div class="flex flex-col items-center justify-center p-4 js-mission-container">
-                <!-- Mission Card goes here -->
-            </div>
-        </div>
-    </template>
-
-    <template id="randomizer-layout-template">
-        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
-            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
-                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
-                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
-                <div class="font-mono text-sm js-seed-display">Seed: </div>
-                <button class="btn text-sm js-reroll-btn">Reroll</button>
-            </div>
-            <div class="flex flex-col items-center justify-center p-4 js-loadout-container">
-                <!-- Loadout goes here -->
-            </div>
-        </div>
-    </template>
 
     <template id="mission-card-template">
         <div class="card flex flex-col items-center">

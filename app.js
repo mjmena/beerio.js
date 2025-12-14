@@ -1,11 +1,23 @@
 const state = {
   missions: null,
   seed: null,
-  view: 'splash', // splash, solo, coop
+  view: 'splash', // splash, solo, coop, all_missions
   generatedData: {
     solo: [],
     coop: []
   }
+};
+
+window.Beerio = {
+  state,
+  ITEMS: [], // Will populate below
+  GACHA_ITEMS: [],
+  KARTS: [],
+  WHEELS: [],
+  GLIDERS: [],
+  CHARACTERS: [],
+  utils: {},
+  helpers: {}
 };
 
 // CONSTANTS
@@ -129,6 +141,35 @@ function shuffle(array, rng) {
   return array;
 }
 
+// Populate Constants
+window.Beerio.ITEMS = ITEMS;
+window.Beerio.GACHA_ITEMS = GACHA_ITEMS;
+window.Beerio.KARTS = KARTS;
+window.Beerio.WHEELS = WHEELS;
+window.Beerio.GLIDERS = GLIDERS;
+window.Beerio.CHARACTERS = CHARACTERS;
+
+// Populate Utils
+window.Beerio.utils = {
+  getHash,
+  setHash,
+  getSeedFromUrl,
+  generateRandomString,
+  cyrb128,
+  sfc32,
+  createRng,
+  shuffle
+};
+
+// Populate Helpers
+window.Beerio.helpers = {
+  instantiateTemplate,
+  renderMissionCard,
+  renderRandomItem,
+  renderRandomLoadout,
+  renderRandomNumber
+};
+
 // Init
 async function init() {
   try {
@@ -140,47 +181,36 @@ async function init() {
     // Initialize HTMX handling
     if (typeof htmx !== 'undefined') {
       htmx.on('htmx:afterSwap', (evt) => {
-        // Get updated URL or state
         const url = new URL(window.location.href);
         const view = url.searchParams.get('view');
         let seed = url.searchParams.get('seed');
 
-        // Determine which partial was loaded and render dynamic content
-        if (evt.detail.pathInfo.requestPath.includes('solo.html')) {
-          // Ensure seed is set if not present in URL for solo view
+        let shouldUpdate = false;
+
+        if (evt.detail.pathInfo.requestPath.includes('solo.html') ||
+          evt.detail.pathInfo.requestPath.includes('coop.html') ||
+          evt.detail.pathInfo.requestPath.includes('randomizer.html') ||
+          evt.detail.pathInfo.requestPath.includes('all_missions.html')) {
+
           if (!seed) {
             seed = generateRandomString();
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('seed', seed);
-            newUrl.searchParams.set('view', 'solo'); // Ensure view is also set
-            window.history.replaceState(null, '', newUrl.toString());
+            url.searchParams.set('seed', seed);
+            shouldUpdate = true;
           }
           state.seed = seed;
-          renderSoloRandom(document.getElementById('solo-container'));
-        } else if (evt.detail.pathInfo.requestPath.includes('coop.html')) {
-          // Ensure seed is set if not present in URL for coop view
-          if (!seed) {
-            seed = generateRandomString();
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('seed', seed);
-            newUrl.searchParams.set('view', 'coop'); // Ensure view is also set
-            window.history.replaceState(null, '', newUrl.toString());
+
+          if (evt.detail.pathInfo.requestPath.includes('solo.html')) url.searchParams.set('view', 'solo');
+          else if (evt.detail.pathInfo.requestPath.includes('coop.html')) url.searchParams.set('view', 'coop');
+          else if (evt.detail.pathInfo.requestPath.includes('randomizer.html')) url.searchParams.set('view', 'randomizer');
+          else if (evt.detail.pathInfo.requestPath.includes('all_missions.html')) url.searchParams.set('view', 'all_missions');
+
+          // If we generated a seed or set view, update URL
+          // Note: HTMX usually pushes URL if hx-push-url is set.
+          // But we might need to enforce the seed being there if it wasn't.
+          if (shouldUpdate) {
+            window.history.replaceState(null, '', url.toString());
           }
-          state.seed = seed;
-          renderCoopRandom(document.getElementById('coop-container'));
-        } else if (evt.detail.pathInfo.requestPath.includes('randomizer.html')) {
-          // Ensure seed is set if not present in URL for randomizer view
-          if (!seed) {
-            seed = generateRandomString();
-            const newUrl = new URL(window.location.href);
-            newUrl.searchParams.set('seed', seed);
-            newUrl.searchParams.set('view', 'randomizer');
-            window.history.replaceState(null, '', newUrl.toString());
-          }
-          state.seed = seed;
-          renderRandomizer(document.getElementById('randomizer-container'));
         }
-        // No action needed for splash.html as it's static
       });
     }
 
@@ -188,27 +218,20 @@ async function init() {
     const url = new URL(window.location.href);
     const view = url.searchParams.get('view') || 'splash';
     const seed = url.searchParams.get('seed');
+    state.seed = seed || generateRandomString();
 
     const appContent = document.getElementById('app-content');
 
+    // For deep linking, we need to manually trigger the load because HTMX isn't doing it on page load
     if (view === 'solo') {
-      state.seed = seed || generateRandomString();
-      // Manually load partial for initial load if we are deep linking
-      htmx.ajax('GET', 'partials/solo.html', '#app-content').then(() => {
-        renderSoloRandom(document.getElementById('solo-container'));
-      });
+      htmx.ajax('GET', 'partials/solo.html', '#app-content');
     } else if (view === 'coop') {
-      state.seed = seed || generateRandomString();
-      htmx.ajax('GET', 'partials/coop.html', '#app-content').then(() => {
-        renderCoopRandom(document.getElementById('coop-container'));
-      });
+      htmx.ajax('GET', 'partials/coop.html', '#app-content');
     } else if (view === 'randomizer') {
-      state.seed = seed || generateRandomString();
-      htmx.ajax('GET', 'partials/randomizer.html', '#app-content').then(() => {
-        renderRandomizer(document.getElementById('randomizer-container'));
-      });
+      htmx.ajax('GET', 'partials/randomizer.html', '#app-content');
+    } else if (view === 'all_missions') {
+      htmx.ajax('GET', 'partials/all_missions.html', '#app-content');
     } else {
-      // Load Splash
       htmx.ajax('GET', 'partials/splash.html', '#app-content');
     }
 
@@ -217,9 +240,6 @@ async function init() {
     document.getElementById('app').innerHTML = `<h1 class="text-center p-4">Error loading missions<br><small>${e.message}</small></h1>`;
   }
 }
-
-// The rest of the rendering functions (renderSoloRandom, renderCoopRandom, etc) remain valid
-// but need to point to the correct container passed as argument.
 
 function instantiateTemplate(id) {
   const template = document.getElementById(id);
@@ -230,75 +250,54 @@ function instantiateTemplate(id) {
   return template.content.cloneNode(true);
 }
 
-function renderRandomizer(container) {
+
+
+function renderAllMissions(container) {
   if (!container) return;
-  const layout = instantiateTemplate('randomizer-layout-template');
+  const layout = instantiateTemplate('all-missions-layout-template');
+  const listContainer = layout.querySelector('.js-all-missions-list');
 
-  // Set Seed
-  layout.querySelector('.js-seed-display').textContent = `Seed: ${state.seed}`;
-
-  // Set Reroll
-  layout.querySelector('.js-reroll-btn').onclick = () => {
-    window.location.href = `?view=randomizer&seed=${generateRandomString()}`;
+  // Helper to add a header
+  const addHeader = (text) => {
+    const h2 = document.createElement('h2');
+    h2.className = "text-xl font-bold mt-4 mb-2 text-gray-700 w-full text-center border-b border-gray-300 pb-2";
+    h2.textContent = text;
+    listContainer.appendChild(h2);
   };
 
-  const loadoutContainer = layout.querySelector('.js-loadout-container');
-  loadoutContainer.appendChild(renderRandomLoadout(state.seed));
+  // 1. Regular Missions
+  if (state.missions.missions && state.missions.missions.length > 0) {
+    addHeader("Solo Missions");
+    state.missions.missions.forEach(mission => {
+      // Use a fixed seed for deterministic examples in the list, or random?
+      // Let's use 'example' so it doesn't change on refresh unless we want it to.
+      // Using random gives a better idea of variety.
+      listContainer.appendChild(renderMissionCard(mission, 'example', 0));
+    });
+  }
+
+  // 2. Co-op Gran Prix
+  if (state.missions.coop_granprix && state.missions.coop_granprix.length > 0) {
+    addHeader("Co-op Grand Prix");
+    state.missions.coop_granprix.forEach(mission => {
+      listContainer.appendChild(renderMissionCard(mission, 'example', 0));
+    });
+  }
+
+  // 3. Co-op Single
+  if (state.missions.coop_single && state.missions.coop_single.length > 0) {
+    addHeader("Co-op Single Race");
+    state.missions.coop_single.forEach(mission => {
+      listContainer.appendChild(renderMissionCard(mission, 'example', 0));
+    });
+  }
 
   container.innerHTML = '';
   container.appendChild(layout);
   htmx.process(container);
 }
 
-function renderSoloRandom(container) {
-  if (!container) return;
-  const rng = createRng(state.seed);
-  const shuffledMissions = shuffle([...state.missions.missions], rng);
-  const mission1 = shuffledMissions[0];
-  const mission2 = shuffledMissions[1];
 
-  const layout = instantiateTemplate('solo-layout-template');
-
-  // Set Seed
-  layout.querySelector('.js-seed-display').textContent = `Seed: ${state.seed}`;
-
-  // Set Reroll
-  layout.querySelector('.js-reroll-btn').onclick = () => {
-    window.location.href = `?view=solo&seed=${generateRandomString()}`;
-  };
-
-  const missionContainer = layout.querySelector('.js-mission-container');
-  missionContainer.appendChild(renderMissionCard(mission1, state.seed, 1));
-  missionContainer.appendChild(renderMissionCard(mission2, state.seed, 2));
-
-  container.innerHTML = '';
-  container.appendChild(layout);
-  htmx.process(container);
-}
-
-function renderCoopRandom(container) {
-  if (!container) return;
-  const rng = createRng(state.seed);
-  const shuffledMissions = shuffle([...state.missions.coop_granprix], rng);
-  const mission = shuffledMissions[0];
-
-  const layout = instantiateTemplate('coop-layout-template');
-
-  // Set Seed
-  layout.querySelector('.js-seed-display').textContent = `Seed: ${state.seed}`;
-
-  // Set Reroll
-  layout.querySelector('.js-reroll-btn').onclick = () => {
-    window.location.href = `?view=coop&seed=${generateRandomString()}`;
-  };
-
-  const missionContainer = layout.querySelector('.js-mission-container');
-  missionContainer.appendChild(renderMissionCard(mission, state.seed, 1));
-
-  container.innerHTML = '';
-  container.appendChild(layout);
-  htmx.process(container);
-}
 
 function renderMissionCard(mission, seed, index) {
   const cardFragment = instantiateTemplate('mission-card-template');

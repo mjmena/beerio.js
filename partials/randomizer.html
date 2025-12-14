@@ -1,2 +1,37 @@
-<!-- Randomizer Container -->
-<div id="randomizer-container" class="h-full w-full"></div>
+<div id="randomizer-container" class="h-full w-full">
+    <template id="randomizer-layout-template">
+        <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+            <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+                <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content"
+                    hx-push-url="?view=splash" hx-swap="innerHTML">Back</button>
+                <div class="font-mono text-sm js-seed-display">Seed: </div>
+                <button class="btn text-sm js-reroll-btn">Reroll</button>
+            </div>
+            <div class="flex flex-col items-center justify-center p-4 js-loadout-container">
+                <!-- Loadout goes here -->
+            </div>
+        </div>
+    </template>
+    <script>
+        (function () {
+            const B = window.Beerio;
+            const container = document.getElementById('randomizer-container');
+            const layout = B.helpers.instantiateTemplate('randomizer-layout-template');
+
+            // Set Seed
+            layout.querySelector('.js-seed-display').textContent = `Seed: ${B.state.seed}`;
+
+            // Set Reroll
+            layout.querySelector('.js-reroll-btn').onclick = () => {
+                window.location.href = `?view=randomizer&seed=${B.utils.generateRandomString()}`;
+            };
+
+            const loadoutContainer = layout.querySelector('.js-loadout-container');
+            loadoutContainer.appendChild(B.helpers.renderRandomLoadout(B.state.seed));
+
+            container.innerHTML = '';
+            container.appendChild(layout);
+            htmx.process(container);
+        })();
+    </script>
+</div>

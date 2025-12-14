@@ -1,4 +1,43 @@
-<!-- This container will be populated by app.js after swap -->
 <div id="solo-container" class="h-full w-full">
-  <div class="p-4 text-center">Loading Solo Missions...</div>
+  <template id="solo-layout-template">
+    <div class="flex flex-col h-full bg-slate-100 overflow-y-auto w-full">
+      <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+        <button class="btn text-sm" hx-get="partials/splash.html" hx-target="#app-content" hx-push-url="?view=splash"
+          hx-swap="innerHTML">Back</button>
+        <div class="font-mono text-sm js-seed-display">Seed: </div>
+        <button class="btn text-sm js-reroll-btn">Reroll</button>
+      </div>
+      <div class="flex flex-col md:flex-row justify-evenly items-start p-4 gap-4 js-mission-container">
+        <!-- Mission Cards go here -->
+      </div>
+    </div>
+  </template>
+  <script>
+    (function () {
+      const B = window.Beerio;
+      const container = document.getElementById('solo-container');
+      const rng = B.utils.createRng(B.state.seed);
+      const shuffledMissions = B.utils.shuffle([...B.state.missions.missions], rng);
+      const mission1 = shuffledMissions[0];
+      const mission2 = shuffledMissions[1];
+
+      const layout = B.helpers.instantiateTemplate('solo-layout-template');
+
+      // Set Seed
+      layout.querySelector('.js-seed-display').textContent = `Seed: ${B.state.seed}`;
+
+      // Set Reroll
+      layout.querySelector('.js-reroll-btn').onclick = () => {
+        window.location.href = `?view=solo&seed=${B.utils.generateRandomString()}`;
+      };
+
+      const missionContainer = layout.querySelector('.js-mission-container');
+      missionContainer.appendChild(B.helpers.renderMissionCard(mission1, B.state.seed, 1));
+      missionContainer.appendChild(B.helpers.renderMissionCard(mission2, B.state.seed, 2));
+
+      container.innerHTML = '';
+      container.appendChild(layout);
+      htmx.process(container);
+    })();
+  </script>
 </div>
