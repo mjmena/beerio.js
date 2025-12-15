@@ -12,9 +12,13 @@
     <div class="bg-white rounded-lg shadow p-4 flex-grow mb-4 flex flex-col">
       <h2 class="text-lg font-semibold mb-4 border-b pb-2">Players Joined</h2>
 
-      <!-- Polling Container -->
-      <div hx-get="/traitor/{{ room_id }}/status" hx-trigger="every 2s" hx-swap="innerHTML">
-        <ul id="player-list" class="list-inside space-y-2">
+      <!-- SSE Container -->
+      <div hx-ext="sse" sse-connect="/traitor/{{ room_id }}/sse">
+        <!-- Listen for game_start event -->
+        <div hx-trigger="sse:game_start" hx-get="/traitor/{{ room_id }}/role?player={{ player_name }}" hx-target="body"
+          hx-push-url="true"></div>
+
+        <ul id="player-list" class="list-inside space-y-2" sse-swap="player_joined" hx-swap="beforeend">
           {% for player in players %}
           <li class="bg-gray-50 p-3 rounded shadow-sm border flex items-center">
             <span class="font-medium">{{ player.name }}</span>

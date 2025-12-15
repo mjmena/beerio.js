@@ -1,8 +1,15 @@
 use std::fs;
 use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
+use tokio::sync::broadcast;
 use crate::model::MissionsData;
 use serde::{Serialize, Deserialize};
+
+#[derive(Clone, Debug, Serialize)]
+pub enum LobbyEvent {
+    PlayerJoined(String),
+    GameStarted,
+}
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum LobbyStatus {
@@ -22,6 +29,7 @@ pub struct Lobby {
     pub players: Vec<Player>,
     pub status: LobbyStatus,
     pub seed: String,
+    pub tx: broadcast::Sender<LobbyEvent>,
 }
 
 #[derive(Clone)]

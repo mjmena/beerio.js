@@ -16,11 +16,17 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
 use percent_encoding::{percent_decode_str, NON_ALPHANUMERIC};
+use axum::response::sse::{Event, Sse};
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::StreamExt;
+use futures::stream::Stream;
+use std::convert::Infallible;
 
 mod model;
 mod state;
 
-use state::{AppState, Lobby, Player, LobbyStatus};
+use state::{AppState, Lobby, Player, LobbyStatus, LobbyEvent};
 use model::{MissionsData, Mission};
 
 #[tokio::main]
@@ -41,7 +47,7 @@ async fn main() {
         .route("/traitor/create", get(traitor_setup).post(traitor_create))
         .route("/traitor/{room_id}/join", get(traitor_join_view).post(traitor_join_action))
         .route("/traitor/{room_id}", get(traitor_lobby_view))
-        .route("/traitor/{room_id}/status", get(traitor_lobby_poll))
+        .route("/traitor/{room_id}/sse", get(traitor_lobby_sse))
         .route("/traitor/{room_id}/start", post(traitor_start))
         .route("/traitor/{room_id}/role", get(traitor_role_view))
         .nest_service("/assets", ServeDir::new("assets"))
@@ -441,11 +447,14 @@ async fn traitor_create(State(state): State<AppState>) -> Redirect {
         .collect::<String>()
         .to_uppercase();
 
+    let (tx, _rx) = broadcast::channel(100);
+
     let lobby = Lobby {
         id: room_id.clone(),
         players: Vec::new(),
         status: LobbyStatus::Waiting,
         seed: rand::thread_rng().gen::<u32>().to_string(),
+        tx,
     };
 
     state.lobbies.write().unwrap().insert(room_id.clone(), lobby);
@@ -506,6 +515,9 @@ async fn traitor_join_action(
         
         // Encode name for URL
         let encoded_name = percent_encoding::utf8_percent_encode(&form.name, percent_encoding::NON_ALPHANUMERIC).to_string();
+        // Broadcast update
+        let _ = lobby.tx.send(LobbyEvent::PlayerJoined(form.name.clone()));
+
         return Redirect::to(&format!("/traitor/{}?player={}", room_id, encoded_name)).into_response();
     }
 
@@ -552,41 +564,36 @@ async fn traitor_lobby_view(
     (StatusCode::NOT_FOUND, "Lobby not found").into_response()
 }
 
-// HTMX poll endpoint
-async fn traitor_lobby_poll(
+// SSE Endpoint
+async fn traitor_lobby_sse(
     State(state): State<AppState>,
     axum::extract::Path(room_id): axum::extract::Path<String>,
 ) -> impl IntoResponse {
     let lobbies = state.lobbies.read().unwrap();
+    
     if let Some(lobby) = lobbies.get(&room_id) {
-        if lobby.status == LobbyStatus::Started {
-             // HX-Redirect to role view
-             // We don't know the player name in poll context usually unless we pass it or check cookie.
-             // But HTMX can handle redirect. We might need a client-side trigger.
-             // We can return a header `HX-Redirect` to reload or go to role page.
-             // However, to go to role page we need `player` param. 
-             // The client has the URL /traitor/ROOM?player=NAME.
-             // If we trigger a reload, it will hit lobby_view again, which will Redirect to role because status is Started.
-             // So: just return HX-Refresh or similar.
-             let mut headers = HeaderMap::new();
-             headers.insert("HX-Refresh", "true".parse().unwrap());
-             return (headers, "Game Started").into_response();
-        }
-
-        // Just return list of players partial?
-        // Reuse TraitorLobbyTemplate but render a fragment? Or a new partial.
-        // Let's use a simple string loop or valid HTML
-        let mut html = String::from("<ul id='player-list' class='list-inside space-y-2'>");
-        for p in &lobby.players {
-            html.push_str(&format!("<li class='bg-white p-2 rounded shadow'>{}</li>", p.name));
-        }
-        html.push_str("</ul>");
+        let rx = lobby.tx.subscribe();
+        let stream = BroadcastStream::new(rx);
         
-        // Also update Update count?
-        // Actually, we can just return the list fragment.
-        return Html(html).into_response();
+        let stream = stream.map(|msg| {
+             match msg {
+                 Ok(LobbyEvent::PlayerJoined(name)) => {
+                     let html = format!("<li class='bg-gray-50 p-3 rounded shadow-sm border flex items-center'><span class='font-medium'>{}</span></li>", name);
+                     Ok::<Event, Infallible>(Event::default().event("player_joined").data(html))
+                 },
+                 Ok(LobbyEvent::GameStarted) => {
+                     Ok::<Event, Infallible>(Event::default().event("game_start").data("started"))
+                 },
+                 Err(_) => Ok::<Event, Infallible>(Event::default()) // Ignore lag errors
+             }
+        });
+
+        Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default()).into_response()
+    } else {
+        let (_, rx) = broadcast::channel::<LobbyEvent>(1);
+        let stream = BroadcastStream::new(rx).map(|_| Ok::<Event, Infallible>(Event::default()));
+        Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::default()).into_response()
     }
-    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
 }
 
 async fn traitor_start(
@@ -607,7 +614,9 @@ async fn traitor_start(
         lobby.players[traitor_idx].is_traitor = true;
         lobby.status = LobbyStatus::Started;
         
-        // Return 200 OK so FE can refresh
+        let _ = lobby.tx.send(LobbyEvent::GameStarted);
+        
+        // Return 200 OK
         return StatusCode::OK.into_response();
     }
     (StatusCode::NOT_FOUND, "Lobby not found").into_response()
