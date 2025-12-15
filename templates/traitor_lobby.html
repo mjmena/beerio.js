@@ -9,34 +9,74 @@
       <div class="mt-2 p-2 bg-white rounded border font-mono text-center select-all">{{ room_id }}</div>
     </div>
 
-    <div class="bg-white rounded-lg shadow p-4 flex-grow mb-4 flex flex-col">
-      <h2 class="text-lg font-semibold mb-4 border-b pb-2">Players Joined</h2>
+    <!-- Main Content Area -->
+    <div id="lobby-content" class="flex flex-col flex-grow">
 
-      <!-- SSE Container -->
-      <div hx-ext="sse" sse-connect="/traitor/{{ room_id }}/sse">
-        <!-- Listen for game_start event -->
-        <div hx-trigger="sse:game_start" hx-get="/traitor/{{ room_id }}/role?player={{ player_name }}" hx-target="body"
-          hx-push-url="true"></div>
+      {% if player_name.is_empty() %}
+      <!-- Join Form -->
+      <div id="join-form-container" class="bg-white p-6 rounded-lg shadow-md mb-6 animate-fade-in">
+        <h2 class="text-xl font-bold mb-4">Join Lobby</h2>
+        <form action="/traitor/{{ room_id }}/join" method="post" class="flex gap-2">
+          <input type="text" name="name" placeholder="Enter your name" class="flex-grow p-2 border rounded" required
+            autofocus>
+          <button type="submit"
+            class="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">Join</button>
+        </form>
+        <div class="mt-4 text-sm text-gray-500 text-center">
+          Share Code: <span class="font-mono font-bold text-lg select-all">{{ room_id }}</span>
+        </div>
+      </div>
+      {% endif %}
 
-        <ul id="player-list" class="list-inside space-y-2" sse-swap="player_joined" hx-swap="beforeend">
-          {% for player in players %}
-          <li class="bg-gray-50 p-3 rounded shadow-sm border flex items-center">
-            <span class="font-medium">{{ player.name }}</span>
-            {% if player.name == player_name %}
-            <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">You</span>
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
+      <!-- Players List (Always visible to see who is in) -->
+      <div class="bg-white rounded-lg shadow p-4 flex-grow mb-4 flex flex-col relative">
+        <h2 class="text-lg font-semibold mb-4 border-b pb-2 flex justify-between items-center">
+          <span>Players Joined</span>
+          <span class="text-sm font-normal text-gray-500">Lobby: {{ room_id }}</span>
+        </h2>
+
+        <!-- SSE Container -->
+        <!-- We connect even if not joined to see updates, but track presence only if joined -->
+        <div hx-ext="sse" sse-connect="/traitor/{{ room_id }}/sse?player={{ player_name }}">
+          <!-- Listen for game_start event -->
+          <div hx-trigger="sse:game_start" hx-get="/traitor/{{ room_id }}/role?player={{ player_name }}"
+            hx-target="body" hx-push-url="true"></div>
+
+          <!-- Listener for player_left to process OOB swap -->
+          <div sse-swap="player_left" class="hidden"></div>
+
+          <!-- Listen for player_left (handled by swap-oob in script payload usually, but explicit listener is good too if script not used) -->
+          <!-- The server sends a script w/ swap-oob, so just being connected performs the DOM update automatically -->
+
+          <ul id="player-list" class="list-inside space-y-2" sse-swap="player_joined" hx-swap="beforeend">
+            {% for player in players %}
+            <li id="player-{{ player.name }}" class="bg-gray-50 p-3 rounded shadow-sm border flex items-center">
+              <span class="font-medium">{{ player.name }}</span>
+              {% if player.name == player_name %}
+              <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">You</span>
+              {% endif %}
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
       </div>
     </div>
 
+    <!-- Sticky Footer Actions -->
     <div class="sticky bottom-0 pb-4">
-      <button hx-post="/traitor/{{ room_id }}/start" hx-swap="none"
-        class="w-full bg-green-600 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-green-700 transition transform active:scale-95 text-xl">
-        START GAME
-      </button>
-      <p class="text-center text-xs text-gray-400 mt-2">Anyone can press start when everyone is ready.</p>
+      {% if !player_name.is_empty() %}
+      <div class="grid grid-cols-1 gap-4">
+        <button hx-post="/traitor/{{ room_id }}/start" hx-swap="none"
+          class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 rounded-xl shadow-lg text-xl transform transition hover:scale-105 active:scale-95">
+          START GAME
+        </button>
+        <p class="text-center text-xs text-gray-400 mt-2">Anyone can press start when everyone is ready.</p>
+      </div>
+      {% else %}
+      <div class="text-center text-gray-500 italic p-4 bg-gray-100 rounded">
+        Join to participate!
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

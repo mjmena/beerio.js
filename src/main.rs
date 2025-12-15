@@ -459,7 +459,7 @@ async fn traitor_create(State(state): State<AppState>) -> Redirect {
 
     state.lobbies.write().unwrap().insert(room_id.clone(), lobby);
     
-    Redirect::to(&format!("/traitor/{}/join", room_id))
+    Redirect::to(&format!("/traitor/{}", room_id))
 }
 
 #[derive(Deserialize)]
@@ -535,7 +535,7 @@ struct TraitorLobbyTemplate {
 
 #[derive(Deserialize)]
 struct LobbyQuery {
-    player: String,
+    player: Option<String>,
 }
 
 async fn traitor_lobby_view(
@@ -543,19 +543,32 @@ async fn traitor_lobby_view(
     axum::extract::Path(room_id): axum::extract::Path<String>,
     Query(params): Query<LobbyQuery>,
 ) -> impl IntoResponse {
-    let lobbies = state.lobbies.read().unwrap();
-    if let Some(lobby) = lobbies.get(&room_id) {
-        if lobby.status == LobbyStatus::Started {
-             // If started, redirect to role view
-             // Redirect::to ...
-             // But we need to keep the player name query param
-             let encoded_name = percent_encoding::utf8_percent_encode(&params.player, percent_encoding::NON_ALPHANUMERIC).to_string();
-             return Redirect::to(&format!("/traitor/{}/role?player={}", room_id, encoded_name)).into_response();
+    let mut lobbies = state.lobbies.write().unwrap();
+    if let Some(lobby) = lobbies.get_mut(&room_id) {
+        // If player param is missing, we treat them as "Joining"
+        // We can reuse the lobby template but conditionally render the form
+        
+        let player_name = params.player.clone().unwrap_or_default();
+        
+        if !player_name.is_empty() {
+             if lobby.status == LobbyStatus::Started {
+                 let encoded_name = percent_encoding::utf8_percent_encode(&player_name, percent_encoding::NON_ALPHANUMERIC).to_string();
+                 return Redirect::to(&format!("/traitor/{}/role?player={}", room_id, encoded_name)).into_response();
+             }
+
+             // Re-add player if missing (Reconnect logic)
+             if !lobby.players.iter().any(|p| p.name == player_name) {
+                 lobby.players.push(Player {
+                     name: player_name.clone(),
+                     is_traitor: false,
+                 });
+                 let _ = lobby.tx.send(LobbyEvent::PlayerJoined(player_name.clone()));
+             }
         }
         
         let template = TraitorLobbyTemplate {
             room_id,
-            player_name: params.player.clone(),
+            player_name,
             players: lobby.players.clone(),
             is_started: false,
         };
@@ -564,22 +577,80 @@ async fn traitor_lobby_view(
     (StatusCode::NOT_FOUND, "Lobby not found").into_response()
 }
 
+struct PlayerLeaveGuard {
+    state: AppState,
+    room_id: String,
+    player_name: String,
+}
+
+impl Drop for PlayerLeaveGuard {
+    fn drop(&mut self) {
+        let state = self.state.clone();
+        let room_id = self.room_id.clone();
+        let name = self.player_name.clone();
+        println!("Player {} disconnected (Drop)", name);
+        
+        // Spawn async task for cleanup since Drop is sync
+        tokio::spawn(async move {
+            let mut lobbies = state.lobbies.write().unwrap();
+            if let Some(lobby) = lobbies.get_mut(&room_id) {
+                // Remove player from list
+                if let Some(pos) = lobby.players.iter().position(|p| p.name == name) {
+                    lobby.players.remove(pos);
+                    // Broadcast leave event
+                    let _ = lobby.tx.send(LobbyEvent::PlayerLeft(name));
+                    println!("Player left event broadcasted");
+                }
+            }
+        });
+    }
+}
+
 // SSE Endpoint
 async fn traitor_lobby_sse(
     State(state): State<AppState>,
     axum::extract::Path(room_id): axum::extract::Path<String>,
+    Query(params): Query<LobbyQuery>,
 ) -> impl IntoResponse {
     let lobbies = state.lobbies.read().unwrap();
     
+    // We expect a player name for the connection to track presence
+    let player_name = params.player.unwrap_or_default();
+
     if let Some(lobby) = lobbies.get(&room_id) {
         let rx = lobby.tx.subscribe();
         let stream = BroadcastStream::new(rx);
         
-        let stream = stream.map(|msg| {
+        // Guard to handle disconnect
+        let guard = if !player_name.is_empty() {
+            println!("Player {} connected to SSE", player_name);
+            Some(Arc::new(PlayerLeaveGuard {
+                state: state.clone(),
+                room_id: room_id.clone(),
+                player_name,
+            }))
+        } else {
+            None
+        };
+
+        // Capture guard in closure
+        let stream = stream.map(move |msg| {
+             let _keep_alive = guard.as_ref();
              match msg {
                  Ok(LobbyEvent::PlayerJoined(name)) => {
-                     let html = format!("<li class='bg-gray-50 p-3 rounded shadow-sm border flex items-center'><span class='font-medium'>{}</span></li>", name);
+                     let html = format!("<li id='player-{}' class='bg-gray-50 p-3 rounded shadow-sm border flex items-center'><span class='font-medium'>{}</span></li>", name, name);
                      Ok::<Event, Infallible>(Event::default().event("player_joined").data(html))
+                 },
+                 Ok(LobbyEvent::PlayerLeft(name)) => {
+                     // We use a dedicated event and let HTMX remove target by ID or swap empty
+                     // But strictly, we can just return a script or use hx-swap-oob?
+                     // Easiest with SSE extensions:
+                     // Returning an event named "player_left" with the ID to remove?
+                     // Actually, if we use ID logic, we can swap content with "empty" targeting the ID?
+                     // Or use a small script.
+                     // "remove_player" event.
+                     let script = format!("<div id='player-{}' hx-swap-oob='delete'></div>", name);
+                     Ok::<Event, Infallible>(Event::default().event("player_left").data(script))
                  },
                  Ok(LobbyEvent::GameStarted) => {
                      Ok::<Event, Infallible>(Event::default().event("game_start").data("started"))
@@ -640,7 +711,7 @@ async fn traitor_role_view(
     if let Some(lobby) = lobbies.get(&room_id) {
         // Find player
         // Note: players have names. We trust query param.
-        if let Some(player) = lobby.players.iter().find(|p| p.name == params.player) {
+        if let Some(player) = lobby.players.iter().find(|p| Some(&p.name) == params.player.as_ref()) {
             
             // Get mission using lobby seed
              let mut hasher = std::collections::hash_map::DefaultHasher::new();

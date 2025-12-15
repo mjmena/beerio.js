@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 #[derive(Clone, Debug, Serialize)]
 pub enum LobbyEvent {
     PlayerJoined(String),
+    PlayerLeft(String),
     GameStarted,
 }
 
