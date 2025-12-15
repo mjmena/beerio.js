@@ -12,13 +12,12 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use tokio::net::TcpListener; // Import TcpListener
 
 mod model;
 mod state;
 
 use state::AppState;
-use model::{MissionsData, Mission}; // Suppress warning if not used, but we use Mission
+use model::{MissionsData, Mission};
 
 #[tokio::main]
 async fn main() {
@@ -30,14 +29,14 @@ async fn main() {
         .route("/", get(index))
         .route("/partials/splash.html", get(splash))
         .route("/partials/coop.html", get(coop))
-        .route("/partials/solo.html", get(solo))
-        .route("/partials/all_missions.html", get(all_missions))
-        .route("/partials/randomizer.html", get(randomizer))
+        // .route("/partials/solo.html", get(solo)) // TODO
+        // .route("/partials/randomizer.html", get(randomizer)) // TODO
+        // .route("/partials/all_missions.html", get(all_missions)) // TODO
         .nest_service("/assets", ServeDir::new("assets"))
-        .nest_service("/style.css", ServeDir::new("style.css"))
+        .nest_service("/style.css", ServeDir::new("style.css")) // If we keep it flat
         .with_state(state);
 
-    let listener = TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     println!("Listening on http://0.0.0.0:3000");
     axum::serve(listener, app).await.unwrap();
 }
@@ -56,9 +55,7 @@ struct IndexTemplate {
 
 async fn index(Query(params): Query<ViewParams>) -> Html<String> {
     let view = params.view.unwrap_or_else(|| "splash".to_string());
-    // Manual rendering:
-    let html = IndexTemplate { view }.render().unwrap();
-    Html(html)
+    Html(IndexTemplate { view }.render().unwrap())
 }
 
 #[derive(Template)]
@@ -66,8 +63,7 @@ async fn index(Query(params): Query<ViewParams>) -> Html<String> {
 struct SplashTemplate;
 
 async fn splash() -> Html<String> {
-    let html = SplashTemplate.render().unwrap();
-    Html(html)
+    Html(SplashTemplate.render().unwrap())
 }
 
 #[derive(Template)]
@@ -80,7 +76,6 @@ struct CoopTemplate {
     random_item_img: Option<String>,
     random_loadout: Option<Loadout>,
     random_number: Option<u32>,
-    nested_gacha_items: Option<Vec<String>>,
 }
 
 #[derive(Clone)] // Added Clone here
@@ -145,22 +140,13 @@ async fn coop(
          rng.gen_range(1..=max)
     });
 
-    let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
+    let nested_mission = if mission.needs_coop_singles {
          let sub_missions = &state.missions.coop_single;
-         let sub = sub_missions.choose(&mut rng).cloned();
-         
-         let gacha = if let Some(ref m) = sub {
-             if m.needs_gacha_item_checklist {
-                 Some(model::GACHA_ITEMS.iter().map(|s| format!("assets/items/{}.png", s)).collect())
-             } else {
-                 None
-             }
-         } else {
-             None
-         };
-         (sub, gacha)
+         // We might want to ensure we don't pick the same one if we want that logic
+         // But for now just random
+         sub_missions.choose(&mut rng).cloned()
     } else {
-        (None, None)
+        None
     };
 
     let template = CoopTemplate {
@@ -170,135 +156,7 @@ async fn coop(
         random_item_img,
         random_loadout,
         random_number,
-        nested_gacha_items,
     };
 
-    let html = template.render().unwrap();
-    Html(html)
-}
-
-#[derive(Template)]
-#[template(path = "partials/solo.html")]
-struct SoloTemplate {
-    seed: String,
-    mission: Mission,
-    random_item_img: Option<String>,
-    random_loadout: Option<Loadout>,
-    random_number: Option<u32>,
-}
-
-async fn solo(
-    State(state): State<AppState>,
-    Query(params): Query<ViewParams>,
-) -> Html<String> {
-    let seed_str = params.seed.unwrap_or_else(|| {
-        rand::thread_rng().gen::<u32>().to_string()
-    });
-    
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(&seed_str, &mut hasher);
-    let seed_u64 = std::hash::Hasher::finish(&hasher);
-    let mut rng = StdRng::seed_from_u64(seed_u64);
-
-    let missions = &state.missions.missions;
-    let mission = missions.choose(&mut rng).unwrap().clone();
-    
-    // Resolve dynamic content (Same logic as coop, effectively)
-    let random_item_img = if mission.needs_random_item {
-        let item = model::ITEMS.choose(&mut rng).unwrap();
-        Some(format!("assets/items/{}.png", item))
-    } else {
-        None
-    };
-
-    let random_loadout = if mission.needs_random_loadout {
-        let c = model::CHARACTERS.choose(&mut rng).unwrap();
-        let k = model::KARTS.choose(&mut rng).unwrap();
-        let w = model::WHEELS.choose(&mut rng).unwrap();
-        let g = model::GLIDERS.choose(&mut rng).unwrap();
-        
-        Some(Loadout {
-            char_img: format!("assets/characters/{}.webp", c.to_lowercase().replace(" ", "_")),
-            char_name: c.to_string(),
-            kart_img: format!("assets/karts/{}.webp", k.to_lowercase().replace(" ", "_")),
-            kart_name: k.to_string(),
-            wheel_img: format!("assets/wheels/{}.webp", w.to_lowercase().replace(" ", "_")),
-            wheel_name: w.to_string(),
-            glider_img: format!("assets/gliders/{}.webp", g.to_lowercase().replace(" ", "_")),
-            glider_name: g.to_string(),
-        })
-    } else {
-        None
-    };
-
-    let random_number = mission.needs_random_number.map(|max| {
-         rng.gen_range(1..=max)
-    });
-
-    let template = SoloTemplate {
-        seed: seed_str,
-        mission,
-        random_item_img,
-        random_loadout,
-        random_number,
-    };
-
-    let html = template.render().unwrap();
-    Html(html)
-}
-
-#[derive(Template)]
-#[template(path = "partials/all_missions.html")]
-struct AllMissionsTemplate<'a> {
-    missions: &'a MissionsData,
-}
-
-async fn all_missions(State(state): State<AppState>) -> Html<String> {
-    let template = AllMissionsTemplate {
-        missions: &state.missions,
-    };
-    let html = template.render().unwrap();
-    Html(html)
-}
-
-#[derive(Template)]
-#[template(path = "partials/randomizer.html")]
-struct RandomizerTemplate {
-    seed: String,
-    loadout: Loadout,
-}
-
-async fn randomizer(Query(params): Query<ViewParams>) -> Html<String> {
-    let seed_str = params.seed.unwrap_or_else(|| {
-        rand::thread_rng().gen::<u32>().to_string()
-    });
-    
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    std::hash::Hash::hash(&seed_str, &mut hasher);
-    let seed_u64 = std::hash::Hasher::finish(&hasher);
-    let mut rng = StdRng::seed_from_u64(seed_u64);
-
-    let c = model::CHARACTERS.choose(&mut rng).unwrap();
-    let k = model::KARTS.choose(&mut rng).unwrap();
-    let w = model::WHEELS.choose(&mut rng).unwrap();
-    let g = model::GLIDERS.choose(&mut rng).unwrap();
-    
-    let loadout = Loadout {
-        char_img: format!("assets/characters/{}.webp", c.to_lowercase().replace(" ", "_")),
-        char_name: c.to_string(),
-        kart_img: format!("assets/karts/{}.webp", k.to_lowercase().replace(" ", "_")),
-        kart_name: k.to_string(),
-        wheel_img: format!("assets/wheels/{}.webp", w.to_lowercase().replace(" ", "_")),
-        wheel_name: w.to_string(),
-        glider_img: format!("assets/gliders/{}.webp", g.to_lowercase().replace(" ", "_")),
-        glider_name: g.to_string(),
-    };
-
-    let template = RandomizerTemplate {
-        seed: seed_str,
-        loadout,
-    };
-
-    let html = template.render().unwrap();
-    Html(html)
+    Html(template.render().unwrap())
 }
