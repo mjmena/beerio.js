@@ -49,6 +49,7 @@ async fn main() {
         .route("/traitor/{room_id}", get(traitor_lobby_view))
         .route("/traitor/{room_id}/sse", get(traitor_lobby_sse))
         .route("/traitor/{room_id}/start", post(traitor_start))
+        .route("/traitor/{room_id}/name/{old_name}", post(traitor_change_name_action))
         .route("/traitor/{room_id}/role", get(traitor_role_view))
         .nest_service("/assets", ServeDir::new("assets"))
         .with_state(state);
@@ -490,6 +491,7 @@ async fn traitor_join_action(
     axum::extract::Path(room_id): axum::extract::Path<String>,
     Form(form): Form<JoinForm>,
 ) -> Response {
+    println!("Join action triggered for room {}, name {}", room_id, form.name);
     // 1. Lock lobbies
     // 2. Add player if not started
     let mut lobbies = state.lobbies.write().unwrap();
@@ -616,6 +618,7 @@ async fn traitor_lobby_sse(
     
     // We expect a player name for the connection to track presence
     let player_name = params.player.unwrap_or_default();
+    println!("SSE request for room {} with player '{}'", room_id, player_name);
 
     if let Some(lobby) = lobbies.get(&room_id) {
         let rx = lobby.tx.subscribe();
@@ -642,15 +645,16 @@ async fn traitor_lobby_sse(
                      Ok::<Event, Infallible>(Event::default().event("player_joined").data(html))
                  },
                  Ok(LobbyEvent::PlayerLeft(name)) => {
-                     // We use a dedicated event and let HTMX remove target by ID or swap empty
-                     // But strictly, we can just return a script or use hx-swap-oob?
-                     // Easiest with SSE extensions:
-                     // Returning an event named "player_left" with the ID to remove?
-                     // Actually, if we use ID logic, we can swap content with "empty" targeting the ID?
-                     // Or use a small script.
-                     // "remove_player" event.
                      let script = format!("<div id='player-{}' hx-swap-oob='delete'></div>", name);
                      Ok::<Event, Infallible>(Event::default().event("player_left").data(script))
+                 },
+                 Ok(LobbyEvent::PlayerNameChanged(_old, _new)) => {
+                     // Handled by Leave/Join sequence in handler for simplicity?
+                     // Or just keep this event but don't use it if we change handler logic?
+                     // The USER wants "player leave and player join event in that case".
+                     // So we should emit PlayerLeft(old) and PlayerJoined(new) events in the handler.
+                     // And remove this custom event handling if not needed.
+                     Ok::<Event, Infallible>(Event::default())
                  },
                  Ok(LobbyEvent::GameStarted) => {
                      Ok::<Event, Infallible>(Event::default().event("game_start").data("started"))
@@ -691,6 +695,38 @@ async fn traitor_start(
         return StatusCode::OK.into_response();
     }
     (StatusCode::NOT_FOUND, "Lobby not found").into_response()
+}
+
+#[derive(Deserialize)]
+struct NameChangeForm {
+    name: String,
+}
+
+async fn traitor_change_name_action(
+    State(state): State<AppState>,
+    axum::extract::Path((room_id, old_name)): axum::extract::Path<(String, String)>,
+    Form(form): Form<NameChangeForm>,
+) -> impl IntoResponse {
+    println!("Change name action: {} -> {}", old_name, form.name);
+    let mut lobbies = state.lobbies.write().unwrap();
+    if let Some(lobby) = lobbies.get_mut(&room_id) {
+        
+        // Find player
+        if let Some(pos) = lobby.players.iter().position(|p| p.name == old_name) {
+            let new_name = form.name.trim().to_string();
+            if !new_name.is_empty() && new_name != old_name {
+                lobby.players[pos].name = new_name.clone();
+                // Send Leave + Join to emulate replacement
+                let _ = lobby.tx.send(LobbyEvent::PlayerLeft(old_name));
+                let _ = lobby.tx.send(LobbyEvent::PlayerJoined(new_name.clone()));
+                
+                // We need to redirect the user to update their URL params
+                let encoded_name = percent_encoding::utf8_percent_encode(&new_name, percent_encoding::NON_ALPHANUMERIC).to_string();
+                return Redirect::to(&format!("/traitor/{}?player={}", room_id, encoded_name)).into_response();
+            }
+        }
+    }
+    StatusCode::OK.into_response()
 }
 
 #[derive(Template)]

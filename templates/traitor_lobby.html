@@ -12,21 +12,33 @@
     <!-- Main Content Area -->
     <div id="lobby-content" class="flex flex-col flex-grow">
 
-      {% if player_name.is_empty() %}
-      <!-- Join Form -->
+      <!-- Identity Form (Always Visible) -->
       <div id="join-form-container" class="bg-white p-6 rounded-lg shadow-md mb-6 animate-fade-in">
-        <h2 class="text-xl font-bold mb-4">Join Lobby</h2>
-        <form action="/traitor/{{ room_id }}/join" method="post" class="flex gap-2">
-          <input type="text" name="name" placeholder="Enter your name" class="flex-grow p-2 border rounded" required
-            autofocus>
+        <h2 class="text-xl font-bold mb-4">Your Name</h2>
+
+        {% if player_name.is_empty() %}
+        <form hx-post="/traitor/{{ room_id }}/join" hx-trigger="submit" hx-target="body" hx-push-url="true"
+          class="flex gap-2">
+          <input type="text" name="name" placeholder="Enter your name to join" class="flex-grow p-2 border rounded"
+            required autofocus>
           <button type="submit"
             class="bg-blue-600 text-white px-4 py-2 rounded font-bold hover:bg-blue-700">Join</button>
         </form>
+        {% else %}
+        <form hx-post="/traitor/{{ room_id }}/name/{{ player_name }}" hx-trigger="change delay:500ms, submit"
+          hx-target="body" hx-push-url="true" class="flex gap-2">
+          <input type="text" name="name" value="{{ player_name }}" placeholder="Your Name"
+            class="flex-grow p-2 border rounded" required>
+          <!-- Optional Save Button -->
+          <button type="submit"
+            class="bg-gray-500 text-white px-4 py-2 rounded font-bold hover:bg-gray-600">Update</button>
+        </form>
+        {% endif %}
+
         <div class="mt-4 text-sm text-gray-500 text-center">
           Share Code: <span class="font-mono font-bold text-lg select-all">{{ room_id }}</span>
         </div>
       </div>
-      {% endif %}
 
       <!-- Players List (Always visible to see who is in) -->
       <div class="bg-white rounded-lg shadow p-4 flex-grow mb-4 flex flex-col relative">

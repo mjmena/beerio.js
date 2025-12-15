@@ -9,6 +9,7 @@ use serde::{Serialize, Deserialize};
 pub enum LobbyEvent {
     PlayerJoined(String),
     PlayerLeft(String),
+    PlayerNameChanged(String, String),
     GameStarted,
 }
 
