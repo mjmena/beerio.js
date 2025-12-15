@@ -1,8 +1,9 @@
 {
-  description = "A simple Nix flake for beerio.js with Python";
+  description = "Beerio Kart Mission Randomizer";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    flake-utils.url = "github:numtide/flake-utils";
     fenix = {
       url = "github:nix-community/fenix";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -10,27 +11,50 @@
   };
 
   outputs =
-    { self, nixpkgs, fenix }:
-    let
-      system = "x86_64-linux";
-      pkgs = nixpkgs.legacyPackages.${system};
-      toolchain = fenix.packages.${system}.stable.toolchain;
-    in
     {
-      devShells.${system}.default = pkgs.mkShell {
-        buildInputs = with pkgs; [
-          nodejs
-          toolchain
-          pkg-config
-          openssl
-        ];
-      };
+      self,
+      nixpkgs,
+      flake-utils,
+      fenix,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
+      let
+        pkgs = nixpkgs.legacyPackages.${system};
+        manifest = (pkgs.lib.importTOML ./Cargo.toml).package;
+        # Use Fenix for the dev toolchain
+        toolchain = fenix.packages.${system}.stable.toolchain;
+      in
+      {
+        packages.default = pkgs.rustPlatform.buildRustPackage {
+          pname = manifest.name;
+          version = manifest.version;
+          src = ./.;
 
-      packages.${system}.default = pkgs.writeShellScriptBin "beerio-server" ''
-        if [ ! -d "node_modules" ]; then
-          ${pkgs.nodejs}/bin/npm install
-        fi
-        ${pkgs.nodejs}/bin/npm run dev -- "$@"
-      '';
-    };
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          nativeBuildInputs = [ pkgs.makeWrapper ];
+
+          buildInputs = [ ];
+
+          postInstall = ''
+            mkdir -p $out/share/beerio
+            cp -r assets missions.json $out/share/beerio/
+
+            wrapProgram $out/bin/beerio \
+              --run "cd $out/share/beerio"
+          '';
+        };
+
+        devShells.default = pkgs.mkShell {
+          buildInputs = [
+            toolchain
+            pkgs.pkg-config
+            pkgs.openssl
+          ];
+        };
+      }
+    );
 }

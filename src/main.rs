@@ -36,7 +36,6 @@ async fn main() {
         .route("/{seed}/all_missions", get(all_missions))
         .route("/{seed}/mission/{name}", get(mission_view))
         .nest_service("/assets", ServeDir::new("assets"))
-        .nest_service("/style.css", ServeDir::new("style.css")) // If we keep it flat
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
