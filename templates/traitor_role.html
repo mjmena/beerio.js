@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-full w-full flex flex-col items-center justify-center p-4 bg-slate-900 text-white">
+  <div class="max-w-md w-full text-center space-y-8 fade-in">
+
+    <div class="space-y-2">
+      <h2 class="text-xl text-gray-400">Player: {{ player_name }}</h2>
+      <h1 class="text-4xl font-bold">Your Role</h1>
+    </div>
+
+    <div class="py-8">
+      {% if is_traitor %}
+      <div class="text-6xl font-black text-red-500 animate-pulse tracking-wider">TRAITOR</div>
+      <p class="mt-4 text-lg text-red-200">Sabotage the mission. Don't get caught.</p>
+      {% else %}
+      <div class="text-6xl font-black text-green-500 tracking-wider">INNOCENT</div>
+      <p class="mt-4 text-lg text-green-200">Complete the mission. Find the traitor.</p>
+      {% endif %}
+    </div>
+
+    <div class="bg-slate-800 p-6 rounded-lg border border-slate-700 shadow-xl">
+      <h3 class="text-sm uppercase tracking-widest text-slate-400 mb-4">Current Mission</h3>
+      <div class="text-2xl font-bold mb-2">{{ mission.name }}</div>
+      <div class="text-slate-300">{{ mission.description }}</div>
+
+      <!-- We could show details here too if needed, simplified for reveal -->
+    </div>
+
+    <a href="/" class="inline-block mt-8 text-slate-500 hover:text-white transition">Back to Main Menu</a>
+  </div>
+</div>
+{% endblock %}

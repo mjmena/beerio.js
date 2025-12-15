@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-full w-full flex flex-col p-4 bg-slate-50">
+  <div class="max-w-md w-full mx-auto flex-grow flex flex-col">
+    <div class="text-center mb-6">
+      <h1 class="text-2xl font-bold">Lobby: {{ room_id }}</h1>
+      <p class="text-sm text-gray-500">Share this URL/code with friends!</p>
+      <div class="mt-2 p-2 bg-white rounded border font-mono text-center select-all">{{ room_id }}</div>
+    </div>
+
+    <div class="bg-white rounded-lg shadow p-4 flex-grow mb-4 flex flex-col">
+      <h2 class="text-lg font-semibold mb-4 border-b pb-2">Players Joined</h2>
+
+      <!-- Polling Container -->
+      <div hx-get="/traitor/{{ room_id }}/status" hx-trigger="every 2s" hx-swap="innerHTML">
+        <ul id="player-list" class="list-inside space-y-2">
+          {% for player in players %}
+          <li class="bg-gray-50 p-3 rounded shadow-sm border flex items-center">
+            <span class="font-medium">{{ player.name }}</span>
+            {% if player.name == player_name %}
+            <span class="ml-auto text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full">You</span>
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="sticky bottom-0 pb-4">
+      <button hx-post="/traitor/{{ room_id }}/start" hx-swap="none"
+        class="w-full bg-green-600 text-white font-bold py-4 rounded-lg shadow-lg hover:bg-green-700 transition transform active:scale-95 text-xl">
+        START GAME
+      </button>
+      <p class="text-center text-xs text-gray-400 mt-2">Anyone can press start when everyone is ready.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

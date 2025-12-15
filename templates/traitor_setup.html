@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="h-full w-full flex flex-col items-center justify-center p-4">
+  <div class="card bg-white p-8 rounded shadow-lg max-w-md w-full text-center">
+    <h1 class="text-3xl font-bold mb-6 text-red-600">Traitor Mode</h1>
+    <p class="mb-6 text-gray-600">Create a lobby and invite your friends. One of you will be the Traitor!</p>
+
+    <form action="/traitor/create" method="post">
+      <button type="submit"
+        class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded hover:bg-red-700 transition duration-300">
+        Create Lobby
+      </button>
+    </form>
+
+    <a href="/" class="block mt-4 text-sm text-gray-500 hover:text-gray-700">Back to Menu</a>
+  </div>
+</div>
+{% endblock %}

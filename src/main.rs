@@ -1,10 +1,12 @@
 use axum::{
-    extract::{Query, State},
-    response::Html,
-    routing::get,
-    http::HeaderMap,
+    extract::{Query, State, Form},
+    response::{Html, Redirect, IntoResponse},
+    routing::{get, post},
+    http::{HeaderMap, StatusCode},
     Router,
+    Json,
 };
+use axum::response::Response;
 use serde::Deserialize;
 use tower_http::services::ServeDir;
 use std::sync::Arc;
@@ -18,7 +20,7 @@ use percent_encoding::{percent_decode_str, NON_ALPHANUMERIC};
 mod model;
 mod state;
 
-use state::AppState;
+use state::{AppState, Lobby, Player, LobbyStatus};
 use model::{MissionsData, Mission};
 
 #[tokio::main]
@@ -34,7 +36,14 @@ async fn main() {
         .route("/{seed}/solo", get(solo))
         .route("/{seed}/randomizer", get(randomizer))
         .route("/all_missions", get(all_missions))
+
         .route("/{seed}/mission/{name}", get(mission_view))
+        .route("/traitor/create", get(traitor_setup).post(traitor_create))
+        .route("/traitor/{room_id}/join", get(traitor_join_view).post(traitor_join_action))
+        .route("/traitor/{room_id}", get(traitor_lobby_view))
+        .route("/traitor/{room_id}/status", get(traitor_lobby_poll))
+        .route("/traitor/{room_id}/start", post(traitor_start))
+        .route("/traitor/{room_id}/role", get(traitor_role_view))
         .nest_service("/assets", ServeDir::new("assets"))
         .with_state(state);
 
@@ -410,4 +419,238 @@ fn find_mission(data: &MissionsData, name: &str) -> Option<Mission> {
         .chain(data.coop_single.iter())
         .find(|m| m.name.eq_ignore_ascii_case(&name_decoded))
         .cloned()
+}
+
+// --- Traitor Mode Handlers & Structs ---
+
+#[derive(Template)]
+#[template(path = "traitor_setup.html")]
+struct TraitorSetupTemplate;
+
+async fn traitor_setup() -> Html<String> {
+    let template = TraitorSetupTemplate;
+    Html(template.render().unwrap())
+}
+
+async fn traitor_create(State(state): State<AppState>) -> Redirect {
+    // Use a short random string for room ID
+    let room_id: String = rand::thread_rng()
+        .sample_iter(&rand::distributions::Alphanumeric)
+        .take(4)
+        .map(char::from)
+        .collect::<String>()
+        .to_uppercase();
+
+    let lobby = Lobby {
+        id: room_id.clone(),
+        players: Vec::new(),
+        status: LobbyStatus::Waiting,
+        seed: rand::thread_rng().gen::<u32>().to_string(),
+    };
+
+    state.lobbies.write().unwrap().insert(room_id.clone(), lobby);
+    
+    Redirect::to(&format!("/traitor/{}/join", room_id))
+}
+
+#[derive(Deserialize)]
+struct JoinForm {
+    name: String,
+}
+
+#[derive(Template)]
+#[template(path = "traitor_join.html")]
+struct TraitorJoinTemplate {
+    room_id: String,
+    room_id_display: String,
+}
+
+async fn traitor_join_view(
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+) ->  impl IntoResponse {
+    // Simple validation could go here
+    let template = TraitorJoinTemplate { 
+        room_id: room_id.clone(),
+        room_id_display: room_id,
+    };
+    Html(template.render().unwrap())
+}
+
+async fn traitor_join_action(
+    State(state): State<AppState>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+    Form(form): Form<JoinForm>,
+) -> Response {
+    // 1. Lock lobbies
+    // 2. Add player if not started
+    let mut lobbies = state.lobbies.write().unwrap();
+    
+    if let Some(lobby) = lobbies.get_mut(&room_id) {
+        if lobby.status != LobbyStatus::Waiting {
+             return (StatusCode::BAD_REQUEST, "Game already started").into_response();
+        }
+        
+        // Check duplicate name? For now, allow duplicates or suffix them. 
+        // Better to avoid confusion: simply allow.
+        
+        lobby.players.push(Player {
+            name: form.name.clone(),
+            is_traitor: false,
+        });
+        
+        // Redirect to lobby + set cookie ideally, but for now we'll just redirect with query param or just simple flow
+        // The user says "link to share... sign in... presses go".
+        // How do we know WHICH player this browser is? 
+        // We need a cookie or local storage. 
+        // Simplest: Redirect to lobby with ?player=NAME. Weak security but fine for casual app.
+        
+        // Encode name for URL
+        let encoded_name = percent_encoding::utf8_percent_encode(&form.name, percent_encoding::NON_ALPHANUMERIC).to_string();
+        return Redirect::to(&format!("/traitor/{}?player={}", room_id, encoded_name)).into_response();
+    }
+
+    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
+}
+
+#[derive(Template)]
+#[template(path = "traitor_lobby.html")]
+struct TraitorLobbyTemplate {
+    room_id: String,
+    player_name: String,
+    players: Vec<Player>,
+    is_started: bool,
+}
+
+#[derive(Deserialize)]
+struct LobbyQuery {
+    player: String,
+}
+
+async fn traitor_lobby_view(
+    State(state): State<AppState>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+    Query(params): Query<LobbyQuery>,
+) -> impl IntoResponse {
+    let lobbies = state.lobbies.read().unwrap();
+    if let Some(lobby) = lobbies.get(&room_id) {
+        if lobby.status == LobbyStatus::Started {
+             // If started, redirect to role view
+             // Redirect::to ...
+             // But we need to keep the player name query param
+             let encoded_name = percent_encoding::utf8_percent_encode(&params.player, percent_encoding::NON_ALPHANUMERIC).to_string();
+             return Redirect::to(&format!("/traitor/{}/role?player={}", room_id, encoded_name)).into_response();
+        }
+        
+        let template = TraitorLobbyTemplate {
+            room_id,
+            player_name: params.player.clone(),
+            players: lobby.players.clone(),
+            is_started: false,
+        };
+        return Html(template.render().unwrap()).into_response();
+    }
+    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
+}
+
+// HTMX poll endpoint
+async fn traitor_lobby_poll(
+    State(state): State<AppState>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let lobbies = state.lobbies.read().unwrap();
+    if let Some(lobby) = lobbies.get(&room_id) {
+        if lobby.status == LobbyStatus::Started {
+             // HX-Redirect to role view
+             // We don't know the player name in poll context usually unless we pass it or check cookie.
+             // But HTMX can handle redirect. We might need a client-side trigger.
+             // We can return a header `HX-Redirect` to reload or go to role page.
+             // However, to go to role page we need `player` param. 
+             // The client has the URL /traitor/ROOM?player=NAME.
+             // If we trigger a reload, it will hit lobby_view again, which will Redirect to role because status is Started.
+             // So: just return HX-Refresh or similar.
+             let mut headers = HeaderMap::new();
+             headers.insert("HX-Refresh", "true".parse().unwrap());
+             return (headers, "Game Started").into_response();
+        }
+
+        // Just return list of players partial?
+        // Reuse TraitorLobbyTemplate but render a fragment? Or a new partial.
+        // Let's use a simple string loop or valid HTML
+        let mut html = String::from("<ul id='player-list' class='list-inside space-y-2'>");
+        for p in &lobby.players {
+            html.push_str(&format!("<li class='bg-white p-2 rounded shadow'>{}</li>", p.name));
+        }
+        html.push_str("</ul>");
+        
+        // Also update Update count?
+        // Actually, we can just return the list fragment.
+        return Html(html).into_response();
+    }
+    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
+}
+
+async fn traitor_start(
+    State(state): State<AppState>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    let mut lobbies = state.lobbies.write().unwrap();
+    if let Some(lobby) = lobbies.get_mut(&room_id) {
+        if lobby.players.len() < 1 { // Allow 1 for testing, though traitor implies >1
+             return (StatusCode::BAD_REQUEST, "Not enough players").into_response();
+        }
+        if lobby.status == LobbyStatus::Started {
+            return (StatusCode::OK, "Already started").into_response();
+        }
+
+        // Assign Traitor
+        let traitor_idx = rand::thread_rng().gen_range(0..lobby.players.len());
+        lobby.players[traitor_idx].is_traitor = true;
+        lobby.status = LobbyStatus::Started;
+        
+        // Return 200 OK so FE can refresh
+        return StatusCode::OK.into_response();
+    }
+    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
+}
+
+#[derive(Template)]
+#[template(path = "traitor_role.html")]
+struct TraitorRoleTemplate {
+    is_traitor: bool,
+    role_name: String,
+    player_name: String,
+    mission: Mission,
+}
+
+async fn traitor_role_view(
+    State(state): State<AppState>,
+    axum::extract::Path(room_id): axum::extract::Path<String>,
+    Query(params): Query<LobbyQuery>,
+) -> impl IntoResponse {
+    let lobbies = state.lobbies.read().unwrap();
+    if let Some(lobby) = lobbies.get(&room_id) {
+        // Find player
+        // Note: players have names. We trust query param.
+        if let Some(player) = lobby.players.iter().find(|p| p.name == params.player) {
+            
+            // Get mission using lobby seed
+             let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            std::hash::Hash::hash(&lobby.seed, &mut hasher);
+            let seed_u64 = std::hash::Hasher::finish(&hasher);
+            let mut rng = StdRng::seed_from_u64(seed_u64);
+            
+            // Traitor mode uses coop missions "for now we can just use the coop missions"
+            let mission = state.missions.coop_granprix.choose(&mut rng).unwrap().clone();
+            
+            let template = TraitorRoleTemplate {
+                is_traitor: player.is_traitor,
+                role_name: if player.is_traitor { "Traitor".to_string() } else { "Innocent".to_string() },
+                player_name: player.name.clone(),
+                mission,
+            };
+            return Html(template.render().unwrap()).into_response();
+        }
+        return (StatusCode::FORBIDDEN, "Player not in lobby").into_response();
+    }
+    (StatusCode::NOT_FOUND, "Lobby not found").into_response()
 }
