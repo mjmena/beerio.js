@@ -13,7 +13,7 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use percent_encoding::percent_decode_str;
+use percent_encoding::{percent_decode_str, NON_ALPHANUMERIC};
 
 mod model;
 mod state;
@@ -33,7 +33,7 @@ async fn main() {
         .route("/{seed}/coop", get(coop))
         .route("/{seed}/solo", get(solo))
         .route("/{seed}/randomizer", get(randomizer))
-        .route("/{seed}/all_missions", get(all_missions))
+        .route("/all_missions", get(all_missions))
         .route("/{seed}/mission/{name}", get(mission_view))
         .nest_service("/assets", ServeDir::new("assets"))
         .with_state(state);
@@ -101,6 +101,7 @@ struct CoopTemplate {
     random_loadout: Option<Loadout>,
     random_number: Option<u32>,
     nested_gacha_items: Option<Vec<String>>,
+    view_name: String,
 }
 
 #[derive(Clone)] // Added Clone here
@@ -182,6 +183,7 @@ async fn coop(
         random_loadout,
         random_number,
         nested_gacha_items,
+        view_name: "coop".to_string(),
     };
 
     render_response(headers, template.render().unwrap())
@@ -197,6 +199,8 @@ struct SoloTemplate {
     random_item_img: Option<String>,
     random_loadout: Option<Loadout>,
     random_number: Option<u32>,
+    nested_gacha_items: Option<Vec<String>>,
+    view_name: String,
 }
 
 async fn solo(
@@ -237,9 +241,15 @@ async fn solo(
 
     let random_number = mission.needs_random_number.map(|max| rng.gen_range(1..=max));
 
-    let nested_mission = if mission.needs_coop_singles {
-         state.missions.coop_single.choose(&mut rng).cloned()
-    } else { None };
+    let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
+         let sub = state.missions.coop_single.choose(&mut rng).cloned();
+         let gacha = sub.as_ref().and_then(|m| {
+             if m.needs_gacha_item_checklist {
+                 Some(model::GACHA_ITEMS.iter().map(|s| format!("/assets/items/{}.png", s)).collect())
+             } else { None }
+         });
+         (sub, gacha)
+    } else { (None, None) };
 
     let template = SoloTemplate {
         seed,
@@ -249,6 +259,8 @@ async fn solo(
         random_item_img,
         random_loadout,
         random_number,
+        nested_gacha_items,
+        view_name: "solo".to_string(),
     };
     render_response(headers, template.render().unwrap())
 }
@@ -259,6 +271,7 @@ struct RandomizerTemplate {
     seed: String,
     next_seed: String,
     loadout: Loadout,
+    view_name: String,
 }
 
 async fn randomizer(
@@ -291,6 +304,7 @@ async fn randomizer(
         seed,
         next_seed,
         loadout,
+        view_name: "randomizer".to_string(),
     };
     render_response(headers, template.render().unwrap())
 }
@@ -299,17 +313,14 @@ async fn randomizer(
 #[template(path = "partials/all_missions.html")]
 struct AllMissionsTemplate<'a> {
     missions: &'a MissionsData,
-    seed: String,
 }
 
 async fn all_missions(
     State(state): State<AppState>,
-    axum::extract::Path(seed): axum::extract::Path<String>,
     headers: HeaderMap,
 ) -> Html<String> {
     let template = AllMissionsTemplate {
         missions: &state.missions,
-        seed,
     };
     render_response(headers, template.render().unwrap())
 }
@@ -357,10 +368,15 @@ async fn mission_view(
         let random_number = mission.needs_random_number.map(|max| rng.gen_range(1..=max));
         
         // Populate nested_mission for SoloTemplate just in case
-        let nested_mission = if mission.needs_coop_singles {
-             let sub_missions = &state.missions.coop_single;
-             sub_missions.choose(&mut rng).cloned()
-        } else { None };
+        let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
+             let sub = state.missions.coop_single.choose(&mut rng).cloned();
+             let gacha = sub.as_ref().and_then(|m| {
+                 if m.needs_gacha_item_checklist {
+                     Some(model::GACHA_ITEMS.iter().map(|s| format!("/assets/items/{}.png", s)).collect())
+                 } else { None }
+             });
+             (sub, gacha)
+        } else { (None, None) };
 
         let template = SoloTemplate {
             seed,
@@ -370,6 +386,8 @@ async fn mission_view(
             random_item_img,
             random_loadout,
             random_number,
+            nested_gacha_items,
+            view_name: format!("mission/{}", percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC).to_string()),
         };
         render_response(headers, template.render().unwrap())
 

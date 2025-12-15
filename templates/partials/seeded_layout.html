@@ -1,0 +1,60 @@
+<div class="h-full w-full flex flex-col">
+  <!-- Common Top Bar -->
+  <div class="p-2 text-center bg-white shadow-sm z-10 sticky top-0 flex justify-between items-center">
+    <button class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded" hx-get="/{{ seed }}"
+      hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true">
+      Back
+    </button>
+    <div class="font-mono text-sm">Seed: {{ seed }}</div>
+    {# Placeholder for balancing flex items if needed, or specific extra buttons #}
+  </div>
+
+  <!-- Content Container -->
+  {# Use view_name for unique styling hooks if needed, e.g. solo-container #}
+  <div id="{{ view_name|lower }}-container"
+    class="flex-grow w-full overflow-hidden flex flex-col items-center bg-slate-100 p-4 fade-in">
+    {% block seeded_content %}{% endblock %}
+  </div>
+
+  <!-- Shared 3D Dice Reroll -->
+  <div class="py-4 bg-white flex justify-center shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
+    <div class="scene js-dice-scene" title="Reroll" hx-get="/{{ next_seed }}/{{ view_name }}" hx-target="#app-content"
+      hx-push-url="true" hx-swap="innerHTML transition:true" onclick="spinDice()">
+      <div class="cube js-dice-cube">
+        <div class="cube__face cube__face--front face-1">
+          <div class="pip"></div>
+        </div>
+        <div class="cube__face cube__face--back face-6">
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <div class="cube__face cube__face--right face-3">
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <div class="cube__face cube__face--left face-4">
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <div class="cube__face cube__face--top face-5">
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+        <div class="cube__face cube__face--bottom face-2">
+          <div class="pip"></div>
+          <div class="pip"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,7 +1,7 @@
 <div class="h-full w-full flex flex-col bg-slate-50">
   <div class="p-4 bg-white shadow sticky top-0 z-10 flex justify-between items-center">
-    <button class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded" hx-get="/{{ seed }}"
-      hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true">
+    <button class="text-sm bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded" hx-get="/" hx-target="body"
+      hx-push-url="true" hx-swap="innerHTML transition:true">
       Back
     </button>
     <h1 class="text-lg font-bold">All Missions</h1>
@@ -15,7 +15,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for mission in missions.missions %}
         <div class="bg-white p-4 rounded shadow border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
-          hx-get="/{{ seed }}/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
+          hx-get="/0/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
           hx-swap="innerHTML transition:true">
           <div class="font-bold text-lg mb-1">{{ mission.name }}</div>
           <div class="text-gray-700 text-sm">{{ mission.description }}</div>
@@ -36,7 +36,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for mission in missions.coop_granprix %}
         <div class="bg-white p-4 rounded shadow border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
-          hx-get="/{{ seed }}/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
+          hx-get="/0/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
           hx-swap="innerHTML transition:true">
           <div class="font-bold text-lg mb-1">{{ mission.name }}</div>
           <div class="text-gray-700 text-sm">{{ mission.description }}</div>
@@ -57,7 +57,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {% for mission in missions.coop_single %}
         <div class="bg-white p-4 rounded shadow border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow"
-          hx-get="/{{ seed }}/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
+          hx-get="/0/mission/{{ mission.name|urlencode }}" hx-target="#app-content" hx-push-url="true"
           hx-swap="innerHTML transition:true">
           <div class="font-bold text-lg mb-1">{{ mission.name }}</div>
           <div class="text-gray-700 text-sm">{{ mission.description }}</div>
