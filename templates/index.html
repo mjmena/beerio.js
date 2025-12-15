@@ -1,0 +1,5 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div hx-get="/partials/{{ view }}.html" hx-trigger="load" hx-swap="innerHTML"></div>
+{% endblock %}

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beerio Kart Mission Randomizer</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    /* CSS for dice and transitions */
+    .scene {
+      width: 100px;
+      height: 100px;
+      perspective: 600px;
+      cursor: pointer;
+      margin: 0 auto;
+    }
+
+    .cube {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      transform-style: preserve-3d;
+      transform: translateZ(-50px);
+      transition: transform 1s;
+    }
+
+    .cube.is-spinning {
+      animation: spin-dice 0.6s linear infinite;
+    }
+
+    @keyframes spin-dice {
+      0% {
+        transform: translateZ(-50px) rotateX(0deg) rotateY(0deg);
+      }
+
+      100% {
+        transform: translateZ(-50px) rotateX(360deg) rotateY(360deg);
+      }
+    }
+
+    .cube__face {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      border: 2px solid black;
+      line-height: 100px;
+      font-size: 40px;
+      font-weight: bold;
+      color: black;
+      text-align: center;
+      background: white;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      padding: 10px;
+    }
+
+    /* Pips */
+    .pip {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #333;
+    }
+
+    .face-1 .pip:nth-child(1) {
+      align-self: center;
+      justify-self: center;
+    }
+
+    .cube__face--front {
+      transform: rotateY(0deg) translateZ(50px);
+    }
+
+    .cube__face--right {
+      transform: rotateY(90deg) translateZ(50px);
+    }
+
+    .cube__face--back {
+      transform: rotateY(180deg) translateZ(50px);
+    }
+
+    .cube__face--left {
+      transform: rotateY(-90deg) translateZ(50px);
+    }
+
+    .cube__face--top {
+      transform: rotateX(90deg) translateZ(50px);
+    }
+
+    .cube__face--bottom {
+      transform: rotateX(-90deg) translateZ(50px);
+    }
+
+    /* HTMX Transition */
+    .fade-in.htmx-added {
+      opacity: 0;
+    }
+
+    .fade-in {
+      opacity: 1;
+      transition: opacity 0.5s ease-in;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app" class="h-screen w-screen overflow-hidden bg-slate-50">
+    <div id="app-content" class="h-full w-full">
+      {% block content %}{% endblock %}
+    </div>
+  </div>
+
+  <!-- Client side helpers for dice -->
+  <script>
+    function spinDice() {
+      const cube = document.querySelector('.js-dice-cube');
+      if (cube && !cube.classList.contains('is-spinning')) {
+        cube.classList.add('is-spinning');
+        // The seed generation and fetching handles the stop implicitly by replacing the content
+        // But if we only replace the mission container, we need to stop spinning manually or 
+        // have the new content not have the class.
+      }
+    }
+  </script>
+</body>
+
+</html>

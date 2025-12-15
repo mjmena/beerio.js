@@ -1,0 +1,20 @@
+<div class="flex flex-col items-center justify-center h-full space-y-4">
+  <h1 class="text-4xl font-bold mb-8">Beerio Kart</h1>
+  <!-- We can link directly to views or use HTMX -->
+  <button class="btn bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-64"
+    hx-get="/partials/solo.html" hx-target="#app-content" hx-push-url="?view=solo">
+    Solo Missions
+  </button>
+  <button class="btn bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-64"
+    hx-get="/partials/coop.html" hx-target="#app-content" hx-push-url="?view=coop">
+    Co-op Gran Prix
+  </button>
+  <button class="btn bg-purple-500 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded w-64"
+    hx-get="/partials/randomizer.html" hx-target="#app-content" hx-push-url="?view=randomizer">
+    Randomizer Tool
+  </button>
+  <button class="btn bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded w-64"
+    hx-get="/partials/all_missions.html" hx-target="#app-content" hx-push-url="?view=all_missions">
+    All Missions
+  </button>
+</div>

@@ -3,18 +3,26 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
-    { self, nixpkgs }:
+    { self, nixpkgs, fenix }:
     let
       system = "x86_64-linux";
       pkgs = nixpkgs.legacyPackages.${system};
+      toolchain = fenix.packages.${system}.stable.toolchain;
     in
     {
       devShells.${system}.default = pkgs.mkShell {
         buildInputs = with pkgs; [
           nodejs
+          toolchain
+          pkg-config
+          openssl
         ];
       };
 
