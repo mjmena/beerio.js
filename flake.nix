@@ -56,5 +56,8 @@
           ];
         };
       }
-    );
+    )
+    // {
+      nixosModules.default = import ./nix/module.nix;
+    };
 }
