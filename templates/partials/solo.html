@@ -2,81 +2,85 @@
 
 {% block seeded_content %}
 <!-- Mission Card -->
-<div class="card flex flex-col items-center bg-white p-6 rounded shadow-lg max-w-md w-full">
-  <div class="text-xl font-bold mb-2 text-center js-mission-name">{{ mission.name }}</div>
-  <div class="text-md mb-2 text-center js-mission-desc">{{ mission.description }}</div>
+<div class="flex flex-col gap-6 w-full items-center">
+  {% for data in missions %}
+  <div class="card flex flex-col items-center bg-white p-6 rounded shadow-lg max-w-md w-full">
+    <div class="text-xl font-bold mb-2 text-center js-mission-name">{{ data.mission.name }}</div>
+    <div class="text-md mb-2 text-center js-mission-desc">{{ data.mission.description }}</div>
 
-  {% if !mission.details.is_empty() %}
-  <div class="text-left mt-2 w-full js-mission-details">
-    <h3 class="text-sm font-semibold text-gray-600">Details</h3>
-    <ul class="list-disc pl-5 text-sm js-details-list">
-      {% for detail in mission.details %}
-      <li>{{ detail }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-
-  <div class="w-full mt-4 js-extra-content">
-    {% if let Some(img) = random_item_img %}
-    <div class="p-2 flex justify-center">
-      <img src="{{ img }}" class="object-contain w-32 h-32" alt="Random Item">
+    {% if !data.mission.details.is_empty() %}
+    <div class="text-left mt-2 w-full js-mission-details">
+      <h3 class="text-sm font-semibold text-gray-600">Details</h3>
+      <ul class="list-disc pl-5 text-sm js-details-list">
+        {% for detail in data.mission.details %}
+        <li>{{ detail }}</li>
+        {% endfor %}
+      </ul>
     </div>
     {% endif %}
 
-    {% if let Some(loadout) = random_loadout %}
-    <div class="flex flex-wrap justify-center gap-2 mt-2">
-      <div class="flex flex-col items-center">
-        <img src="{{ loadout.char_img }}" class="w-24 h-24 object-scale-down">
-        <span class="text-xs">{{ loadout.char_name }}</span>
+    <div class="w-full mt-4 js-extra-content">
+      {% if let Some(img) = data.random_item_img %}
+      <div class="p-2 flex justify-center">
+        <img src="{{ img }}" class="object-contain w-32 h-32" alt="Random Item">
       </div>
-      <div class="flex flex-col items-center">
-        <img src="{{ loadout.kart_img }}" class="w-24 h-24 object-scale-down">
-        <span class="text-xs">{{ loadout.kart_name }}</span>
-      </div>
-      <div class="flex flex-col items-center">
-        <img src="{{ loadout.wheel_img }}" class="w-24 h-24 object-scale-down">
-        <span class="text-xs">{{ loadout.wheel_name }}</span>
-      </div>
-      <div class="flex flex-col items-center">
-        <img src="{{ loadout.glider_img }}" class="w-24 h-24 object-scale-down">
-        <span class="text-xs">{{ loadout.glider_name }}</span>
-      </div>
-    </div>
-    {% endif %}
+      {% endif %}
 
-    {% if let Some(num) = random_number %}
-    <div class="text-4xl font-bold p-4 text-center">{{ num }}</div>
-    {% endif %}
-
-    <!-- Nested Mission -->
-    {% if let Some(nested) = nested_mission %}
-    <div class="mt-4 border-t pt-4 w-full">
-      <div class="text-lg font-bold mb-1 text-center text-purple-600">Single Race</div>
-      <div class="card bg-gray-50 p-4 rounded border border-gray-200 w-full">
-        <div class="font-bold text-center">{{ nested.name }}</div>
-        <div class="text-sm text-center mb-2">{{ nested.description }}</div>
-        {% if !nested.details.is_empty() %}
-        <ul class="list-disc pl-5 text-xs">
-          {% for d in nested.details %}
-          <li>{{ d }}</li>
-          {% endfor %}
-        </ul>
-        {% endif %}
-
-        {% if let Some(gacha_items) = nested_gacha_items %}
-        <div class="mt-2">
-          <div class="text-xs font-bold text-center mb-1">Items to Find:</div>
-          <div class="flex flex-wrap justify-center gap-1">
-            {% for item_img in gacha_items %}
-            <img src="{{ item_img }}" class="w-8 h-8 object-contain bg-white border rounded p-0.5">
-            {% endfor %}
-          </div>
+      {% if let Some(loadout) = data.random_loadout %}
+      <div class="flex flex-wrap justify-center gap-2 mt-2">
+        <div class="flex flex-col items-center">
+          <img src="{{ loadout.char_img }}" class="w-24 h-24 object-scale-down">
+          <span class="text-xs">{{ loadout.char_name }}</span>
         </div>
-        {% endif %}
+        <div class="flex flex-col items-center">
+          <img src="{{ loadout.kart_img }}" class="w-24 h-24 object-scale-down">
+          <span class="text-xs">{{ loadout.kart_name }}</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <img src="{{ loadout.wheel_img }}" class="w-24 h-24 object-scale-down">
+          <span class="text-xs">{{ loadout.wheel_name }}</span>
+        </div>
+        <div class="flex flex-col items-center">
+          <img src="{{ loadout.glider_img }}" class="w-24 h-24 object-scale-down">
+          <span class="text-xs">{{ loadout.glider_name }}</span>
+        </div>
       </div>
+      {% endif %}
+
+      {% if let Some(num) = data.random_number %}
+      <div class="text-4xl font-bold p-4 text-center">{{ num }}</div>
+      {% endif %}
+
+      <!-- Nested Mission -->
+      {% if let Some(nested) = data.nested_mission %}
+      <div class="mt-4 border-t pt-4 w-full">
+        <div class="text-lg font-bold mb-1 text-center text-purple-600">Single Race</div>
+        <div class="card bg-gray-50 p-4 rounded border border-gray-200 w-full">
+          <div class="font-bold text-center">{{ nested.name }}</div>
+          <div class="text-sm text-center mb-2">{{ nested.description }}</div>
+          {% if !nested.details.is_empty() %}
+          <ul class="list-disc pl-5 text-xs">
+            {% for d in nested.details %}
+            <li>{{ d }}</li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+
+          {% if let Some(gacha_items) = data.nested_gacha_items %}
+          <div class="mt-2">
+            <div class="text-xs font-bold text-center mb-1">Items to Find:</div>
+            <div class="flex flex-wrap justify-center gap-1">
+              {% for item_img in gacha_items %}
+              <img src="{{ item_img }}" class="w-8 h-8 object-contain bg-white border rounded p-0.5">
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
+  {% endfor %}
 </div>
 {% endblock %}

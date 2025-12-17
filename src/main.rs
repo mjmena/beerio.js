@@ -132,6 +132,61 @@ struct Loadout {
     glider_name: String,
 }
 
+struct MissionDisplayData {
+    mission: Mission,
+    random_item_img: Option<String>,
+    random_loadout: Option<Loadout>,
+    random_number: Option<u32>,
+    nested_mission: Option<Mission>,
+    nested_gacha_items: Option<Vec<String>>,
+}
+
+fn resolve_mission_display(mission: Mission, rng: &mut StdRng, state: &AppState) -> MissionDisplayData {
+    let random_item_img = if mission.needs_random_item {
+        let item = model::ITEMS.choose(rng).unwrap();
+        Some(format!("/assets/items/{}.png", item))
+    } else { None };
+
+    let random_loadout = if mission.needs_random_loadout {
+        let c = model::CHARACTERS.choose(rng).unwrap();
+        let k = model::KARTS.choose(rng).unwrap();
+        let w = model::WHEELS.choose(rng).unwrap();
+        let g = model::GLIDERS.choose(rng).unwrap();
+        
+        Some(Loadout {
+            char_img: format!("/assets/characters/{}.webp", c.to_lowercase().replace(" ", "_")),
+            char_name: c.to_string(),
+            kart_img: format!("/assets/karts/{}.webp", k.to_lowercase().replace(" ", "_")),
+            kart_name: k.to_string(),
+            wheel_img: format!("/assets/wheels/{}.webp", w.to_lowercase().replace(" ", "_")),
+            wheel_name: w.to_string(),
+            glider_img: format!("/assets/gliders/{}.webp", g.to_lowercase().replace(" ", "_")),
+            glider_name: g.to_string(),
+        })
+    } else { None };
+
+    let random_number = mission.needs_random_number.map(|max| rng.gen_range(1..=max));
+
+    let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
+         let sub = state.missions.coop_single.choose(rng).cloned();
+         let gacha = sub.as_ref().and_then(|m| {
+             if m.needs_gacha_item_checklist {
+                 Some(model::GACHA_ITEMS.iter().map(|s| format!("/assets/items/{}.png", s)).collect())
+             } else { None }
+         });
+         (sub, gacha)
+    } else { (None, None) };
+
+    MissionDisplayData {
+        mission,
+        random_item_img,
+        random_loadout,
+        random_number,
+        nested_mission,
+        nested_gacha_items,
+    }
+}
+
 async fn coop(
     State(state): State<AppState>,
     axum::extract::Path(seed): axum::extract::Path<String>,
@@ -210,12 +265,7 @@ async fn coop(
 struct SoloTemplate {
     seed: String,
     next_seed: String,
-    mission: Mission,
-    nested_mission: Option<Mission>,
-    random_item_img: Option<String>,
-    random_loadout: Option<Loadout>,
-    random_number: Option<u32>,
-    nested_gacha_items: Option<Vec<String>>,
+    missions: Vec<MissionDisplayData>,
     view_name: String,
 }
 
@@ -230,52 +280,21 @@ async fn solo(
     let mut rng = StdRng::seed_from_u64(seed_u64);
     let next_seed = rand::thread_rng().gen::<u32>().to_string();
     
-    let mission = state.missions.missions.choose(&mut rng).unwrap().clone();
+    // Choose 2 unique missions
+    let amount = 2;
+    let chosen: Vec<_> = state.missions.missions
+        .choose_multiple(&mut rng, amount)
+        .cloned()
+        .collect();
     
-    let random_item_img = if mission.needs_random_item {
-        let item = model::ITEMS.choose(&mut rng).unwrap();
-        Some(format!("/assets/items/{}.png", item))
-    } else { None };
-
-    let random_loadout = if mission.needs_random_loadout {
-        let c = model::CHARACTERS.choose(&mut rng).unwrap();
-        let k = model::KARTS.choose(&mut rng).unwrap();
-        let w = model::WHEELS.choose(&mut rng).unwrap();
-        let g = model::GLIDERS.choose(&mut rng).unwrap();
-        
-        Some(Loadout {
-            char_img: format!("/assets/characters/{}.webp", c.to_lowercase().replace(" ", "_")),
-            char_name: c.to_string(),
-            kart_img: format!("/assets/karts/{}.webp", k.to_lowercase().replace(" ", "_")),
-            kart_name: k.to_string(),
-            wheel_img: format!("/assets/wheels/{}.webp", w.to_lowercase().replace(" ", "_")),
-            wheel_name: w.to_string(),
-            glider_img: format!("/assets/gliders/{}.webp", g.to_lowercase().replace(" ", "_")),
-            glider_name: g.to_string(),
-        })
-    } else { None };
-
-    let random_number = mission.needs_random_number.map(|max| rng.gen_range(1..=max));
-
-    let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
-         let sub = state.missions.coop_single.choose(&mut rng).cloned();
-         let gacha = sub.as_ref().and_then(|m| {
-             if m.needs_gacha_item_checklist {
-                 Some(model::GACHA_ITEMS.iter().map(|s| format!("/assets/items/{}.png", s)).collect())
-             } else { None }
-         });
-         (sub, gacha)
-    } else { (None, None) };
+    let missions_data: Vec<MissionDisplayData> = chosen.into_iter()
+        .map(|m| resolve_mission_display(m, &mut rng, &state))
+        .collect();
 
     let template = SoloTemplate {
         seed,
         next_seed,
-        mission,
-        nested_mission,
-        random_item_img,
-        random_loadout,
-        random_number,
-        nested_gacha_items,
+        missions: missions_data,
         view_name: "solo".to_string(),
     };
     render_response(headers, template.render().unwrap())
@@ -358,51 +377,12 @@ async fn mission_view(
         let mut rng = StdRng::seed_from_u64(seed_u64);
         let next_seed = rand::thread_rng().gen::<u32>().to_string();
 
-        let random_item_img = if mission.needs_random_item {
-            let item = model::ITEMS.choose(&mut rng).unwrap();
-            Some(format!("/assets/items/{}.png", item))
-        } else { None };
-
-        let random_loadout = if mission.needs_random_loadout {
-            let c = model::CHARACTERS.choose(&mut rng).unwrap();
-            let k = model::KARTS.choose(&mut rng).unwrap();
-            let w = model::WHEELS.choose(&mut rng).unwrap();
-            let g = model::GLIDERS.choose(&mut rng).unwrap();
-            
-            Some(Loadout {
-                char_img: format!("/assets/characters/{}.webp", c.to_lowercase().replace(" ", "_")),
-                char_name: c.to_string(),
-                kart_img: format!("/assets/karts/{}.webp", k.to_lowercase().replace(" ", "_")),
-                kart_name: k.to_string(),
-                wheel_img: format!("/assets/wheels/{}.webp", w.to_lowercase().replace(" ", "_")),
-                wheel_name: w.to_string(),
-                glider_img: format!("/assets/gliders/{}.webp", g.to_lowercase().replace(" ", "_")),
-                glider_name: g.to_string(),
-            })
-        } else { None };
-
-        let random_number = mission.needs_random_number.map(|max| rng.gen_range(1..=max));
-        
-        // Populate nested_mission for SoloTemplate just in case
-        let (nested_mission, nested_gacha_items) = if mission.needs_coop_singles {
-             let sub = state.missions.coop_single.choose(&mut rng).cloned();
-             let gacha = sub.as_ref().and_then(|m| {
-                 if m.needs_gacha_item_checklist {
-                     Some(model::GACHA_ITEMS.iter().map(|s| format!("/assets/items/{}.png", s)).collect())
-                 } else { None }
-             });
-             (sub, gacha)
-        } else { (None, None) };
+        let mission_display = resolve_mission_display(mission, &mut rng, &state);
 
         let template = SoloTemplate {
             seed,
             next_seed,
-            mission,
-            nested_mission,
-            random_item_img,
-            random_loadout,
-            random_number,
-            nested_gacha_items,
+            missions: vec![mission_display],
             view_name: format!("mission/{}", percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC).to_string()),
         };
         render_response(headers, template.render().unwrap())
