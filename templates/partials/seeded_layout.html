@@ -12,7 +12,7 @@
   <!-- Content Container -->
   {# Use view_name for unique styling hooks if needed, e.g. solo-container #}
   <div id="{{ view_name|lower }}-container"
-    class="flex-grow w-full overflow-hidden flex flex-col items-center bg-slate-100 p-4 fade-in">
+    class="flex-grow w-full overflow-y-auto flex flex-col items-center bg-slate-100 p-4 fade-in">
     {% block seeded_content %}{% endblock %}
   </div>
 
