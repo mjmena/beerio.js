@@ -4,9 +4,40 @@
 <div class="h-full w-full flex flex-col p-4 bg-slate-50">
   <div class="max-w-md w-full mx-auto flex-grow flex flex-col">
     <div class="text-center mb-6">
-      <h1 class="text-2xl font-bold">Lobby: {{ room_id }}</h1>
+      <script>
+        document.addEventListener("DOMContentLoaded", () => {
+          const roomUrlElement = document.getElementById('room-url');
+          if (roomUrlElement) {
+            const roomUrl = window.location.protocol + '//' + window.location.host + window.location.pathname;
+            roomUrlElement.textContent = roomUrl;
+
+            roomUrlElement.addEventListener('click', async () => {
+              try {
+                await navigator.clipboard.writeText(roomUrl);
+                const originalText = roomUrlElement.textContent;
+                const originalClass = roomUrlElement.className;
+
+                roomUrlElement.textContent = 'Copied!';
+                roomUrlElement.classList.add('text-green-600', 'font-semibold');
+                roomUrlElement.classList.remove('hover:underline');
+
+                setTimeout(() => {
+                  roomUrlElement.textContent = originalText;
+                  roomUrlElement.className = originalClass;
+                }, 1500);
+              } catch (err) {
+                console.error('Failed to copy text: ', err);
+                roomUrlElement.textContent = 'Failed!';
+                setTimeout(() => {
+                  roomUrlElement.textContent = roomUrl;
+                }, 1500);
+              }
+            });
+          }
+        });
+      </script>
       <p class="text-sm text-gray-500">Share this URL/code with friends!</p>
-      <div class="mt-2 p-2 bg-white rounded border font-mono text-center select-all">{{ room_id }}</div>
+      <div id="room-url" class="mt-2 p-2 bg-white rounded border font-mono text-center select-all">{{ room_id }}</div>
     </div>
 
     <!-- Main Content Area -->

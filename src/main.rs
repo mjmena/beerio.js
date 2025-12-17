@@ -468,22 +468,10 @@ struct JoinForm {
     name: String,
 }
 
-#[derive(Template)]
-#[template(path = "traitor_join.html")]
-struct TraitorJoinTemplate {
-    room_id: String,
-    room_id_display: String,
-}
-
 async fn traitor_join_view(
     axum::extract::Path(room_id): axum::extract::Path<String>,
 ) ->  impl IntoResponse {
-    // Simple validation could go here
-    let template = TraitorJoinTemplate { 
-        room_id: room_id.clone(),
-        room_id_display: room_id,
-    };
-    Html(template.render().unwrap())
+    Redirect::to(&format!("/traitor/{}", room_id))
 }
 
 async fn traitor_join_action(
