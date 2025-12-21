@@ -11,92 +11,6 @@
   <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
   <style>
     /* CSS for dice and transitions */
-    .scene {
-      width: 100px;
-      height: 100px;
-      perspective: 600px;
-      cursor: pointer;
-      margin: 0 auto;
-    }
-
-    .cube {
-      width: 100%;
-      height: 100%;
-      position: relative;
-      transform-style: preserve-3d;
-      transform: translateZ(-50px);
-      transition: transform 1s;
-    }
-
-    .cube.is-spinning {
-      animation: spin-dice 0.6s linear infinite;
-    }
-
-    @keyframes spin-dice {
-      0% {
-        transform: translateZ(-50px) rotateX(0deg) rotateY(0deg);
-      }
-
-      100% {
-        transform: translateZ(-50px) rotateX(360deg) rotateY(360deg);
-      }
-    }
-
-    .cube__face {
-      position: absolute;
-      width: 100px;
-      height: 100px;
-      border: 2px solid black;
-      line-height: 100px;
-      font-size: 40px;
-      font-weight: bold;
-      color: black;
-      text-align: center;
-      background: white;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: center;
-      gap: 5px;
-      padding: 10px;
-    }
-
-    /* Pips */
-    .pip {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      background: #333;
-    }
-
-    .face-1 .pip:nth-child(1) {
-      align-self: center;
-      justify-self: center;
-    }
-
-    .cube__face--front {
-      transform: rotateY(0deg) translateZ(50px);
-    }
-
-    .cube__face--right {
-      transform: rotateY(90deg) translateZ(50px);
-    }
-
-    .cube__face--back {
-      transform: rotateY(180deg) translateZ(50px);
-    }
-
-    .cube__face--left {
-      transform: rotateY(-90deg) translateZ(50px);
-    }
-
-    .cube__face--top {
-      transform: rotateX(90deg) translateZ(50px);
-    }
-
-    .cube__face--bottom {
-      transform: rotateX(-90deg) translateZ(50px);
-    }
 
     /* HTMX Transition */
     .fade-in.htmx-added {
@@ -107,27 +21,196 @@
       opacity: 1;
       transition: opacity 0.5s ease-in;
     }
+
+    /* Pill Active Styles */
+    .pill-active {
+      background-color: #3b82f6;
+      /* blue-500 */
+      color: white;
+      box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+    }
+
+    .pill-inactive {
+      color: #64748b;
+      /* slate-500 */
+    }
+
+    .pill-inactive:hover {
+      background-color: #f1f5f9;
+      /* slate-100 */
+      color: #1e293b;
+      /* slate-800 */
+    }
   </style>
 </head>
 
-<body>
-  <div id="app" class="h-screen w-screen overflow-hidden bg-slate-50">
-    <div id="app-content" class="h-full w-full">
+<body class="overscroll-none">
+  <div id="app" class="h-[100dvh] w-screen overflow-hidden bg-slate-50" style="touch-action: none;">
+    <!-- Persistent Pill Selector -->
+    {% include "partials/pill_selector.html" %}
+
+    <div id="app-content" class="h-full w-full pt-16"> <!-- Added padding-top to account for fixed pill selector -->
       {% block content %}{% endblock %}
     </div>
   </div>
 
   <!-- Client side helpers for dice -->
   <script>
-    function spinDice() {
-      const cube = document.querySelector('.js-dice-cube');
-      if (cube && !cube.classList.contains('is-spinning')) {
-        cube.classList.add('is-spinning');
-        // The seed generation and fetching handles the stop implicitly by replacing the content
-        // But if we only replace the mission container, we need to stop spinning manually or 
-        // have the new content not have the class.
+    function setActivePill(mode) {
+      const pills = ['randomizer', 'solo', 'coop', 'traitor'];
+      pills.forEach(p => {
+        const el = document.getElementById('pill-' + p);
+        if (el) {
+          // Remove both classes first to be safe
+          el.classList.remove('pill-active', 'pill-inactive');
+
+          if (p === mode) {
+            el.classList.add('pill-active');
+          } else {
+            el.classList.add('pill-inactive');
+          }
+        }
+      });
+    }
+
+    function updatePillsFromUrl() {
+      const path = window.location.pathname;
+      if (path.includes('/randomizer')) setActivePill('randomizer');
+      else if (path.includes('/solo')) setActivePill('solo');
+      else if (path.includes('/coop')) setActivePill('coop');
+      else if (path.includes('/traitor')) setActivePill('traitor');
+      else setActivePill('solo');
+    }
+
+    // Swipe Handling
+    let touchstartX = 0;
+    let touchstartY = 0;
+    let touchendX = 0;
+    let touchendY = 0;
+
+    const modes = ['randomizer', 'solo', 'coop', 'traitor'];
+
+    function getModeIndex() {
+      const path = window.location.pathname;
+      if (path.includes('randomizer')) return 0;
+      if (path.includes('solo')) return 1;
+      if (path.includes('coop')) return 2;
+      if (path.includes('traitor')) return 3;
+      return 1; // solo default
+    }
+
+    function getSeed() {
+      const path = window.location.pathname;
+      const parts = path.split('/');
+      return parts[1] || '0';
+    }
+
+    // Helper to perform HTMX navigation with URL push
+    function navigateTo(url) {
+      // htmx.ajax doesn't support pushUrl option directly in all versions/contexts.
+      // Robust way: Create a temporary element and trigger it.
+      const dummy = document.createElement('button');
+      dummy.setAttribute('hx-get', url);
+      dummy.setAttribute('hx-target', '#app-content');
+      dummy.setAttribute('hx-swap', 'innerHTML transition:true');
+      dummy.setAttribute('hx-push-url', 'true');
+      document.body.appendChild(dummy);
+      htmx.process(dummy); // Process HTMX attributes
+      dummy.click();
+      dummy.remove();
+    }
+
+    function handleSwipe() {
+      const dx = touchendX - touchstartX;
+      const dy = touchendY - touchstartY;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+
+      if (absX > absY && absX > 50) {
+        // Horizontal swipe
+        const currentIndex = getModeIndex();
+        let nextIndex = currentIndex;
+        if (dx > 0) {
+          // Swipe Right -> Go Left in list
+          nextIndex = Math.max(0, currentIndex - 1);
+        } else {
+          // Swipe Left -> Go Right in list
+          nextIndex = Math.min(modes.length - 1, currentIndex + 1);
+        }
+
+        if (nextIndex !== currentIndex) {
+          const nextMode = modes[nextIndex];
+          const seed = getSeed();
+          const url = nextMode === 'traitor' ? '/traitor/create' : `/${seed}/${nextMode}`;
+          navigateTo(url);
+        }
+      } else if (absY > absX && absY > 50) {
+        // Vertical swipe
+        if (dy < -50) {
+          // Swipe Up (Finger moves up) -> Navigation NEXT (New Seed)
+          const currentIndex = getModeIndex();
+          const mode = modes[currentIndex];
+          if (mode !== 'traitor') {
+            const nextSeed = Math.floor(Math.random() * 1000000);
+            const url = `/${nextSeed}/${mode}`;
+            navigateTo(url);
+          }
+        } else {
+          // Swipe Down (Finger moves down) -> Navigation BACK (Previous Seed)
+          window.history.back();
+        }
       }
     }
+
+    document.addEventListener('touchstart', e => {
+      touchstartX = e.changedTouches[0].screenX;
+      touchstartY = e.changedTouches[0].screenY;
+    }, false);
+
+    document.addEventListener('touchend', e => {
+      touchendX = e.changedTouches[0].screenX;
+      touchendY = e.changedTouches[0].screenY;
+      handleSwipe();
+    }, false);
+
+    // Prevent default scrolling behavior
+    document.addEventListener('touchmove', e => {
+      if (e.cancelable) e.preventDefault();
+    }, { passive: false });
+
+    // Scroll Wheel Support
+    let lastWheelTime = 0;
+    const WHEEL_DEBOUNCE_MS = 800; // Debounce to prevent accidental double-skips
+
+    document.addEventListener('wheel', e => {
+      // Prevent browser scroll
+      if (e.cancelable) e.preventDefault();
+
+      const now = Date.now();
+      if (now - lastWheelTime < WHEEL_DEBOUNCE_MS) return;
+
+      if (Math.abs(e.deltaY) > 20) {
+        lastWheelTime = now;
+
+        if (e.deltaY < 0) {
+          // Scroll Up -> Navigation NEXT (New Seed)
+          const currentIndex = getModeIndex();
+          const mode = modes[currentIndex];
+          if (mode !== 'traitor') {
+            const nextSeed = Math.floor(Math.random() * 1000000);
+            const url = `/${nextSeed}/${mode}`;
+            navigateTo(url);
+          }
+        } else {
+          // Scroll Down -> Navigation BACK (Previous Seed)
+          window.history.back();
+        }
+      }
+    }, { passive: false });
+
+    document.addEventListener('DOMContentLoaded', updatePillsFromUrl);
+    document.body.addEventListener('htmx:afterSwap', updatePillsFromUrl);
+    document.body.addEventListener('htmx:pushedIntoHistory', updatePillsFromUrl);
   </script>
 </body>
 

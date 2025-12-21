@@ -37,7 +37,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(root))
-        .route("/{seed}", get(splash))
+        .route("/{seed}", get(seed_redirect))
         .route("/{seed}/coop", get(coop))
         .route("/{seed}/solo", get(solo))
         .route("/{seed}/randomizer", get(randomizer))
@@ -65,45 +65,36 @@ struct ViewParams {
     seed: Option<String>,
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate {
-    view: String,
-}
+// IndexTemplate removed as it was unused and caused compilation errors (missing seed)
 
 async fn root() -> axum::response::Redirect {
     let seed = rand::thread_rng().gen::<u32>().to_string();
-    axum::response::Redirect::to(&format!("/{}", seed))
+    axum::response::Redirect::to(&format!("/{}/solo", seed))
 }
 
 #[derive(Template)]
 #[template(path = "layout_wrapper.html")]
 struct LayoutWrapperTemplate {
     content: String,
+    seed: String,
 }
 
-fn render_response(headers: HeaderMap, content: String) -> Html<String> {
+fn render_response(headers: HeaderMap, content: String, seed: Option<String>) -> Html<String> {
     if headers.contains_key("hx-request") {
         Html(content)
     } else {
-        let wrapper = LayoutWrapperTemplate { content };
+        let seed = seed.unwrap_or_else(|| rand::thread_rng().gen::<u32>().to_string());
+        let wrapper = LayoutWrapperTemplate { content, seed };
         Html(wrapper.render().unwrap())
     }
 }
 
-#[derive(Template)]
-#[template(path = "partials/splash.html")]
-struct SplashTemplate {
-    seed: String,
+async fn seed_redirect(
+    axum::extract::Path(seed): axum::extract::Path<String>,
+) -> axum::response::Redirect {
+    axum::response::Redirect::to(&format!("/{}/solo", seed))
 }
 
-async fn splash(
-    axum::extract::Path(seed): axum::extract::Path<String>,
-    headers: HeaderMap,
-) -> Html<String> {
-    let template = SplashTemplate { seed };
-    render_response(headers, template.render().unwrap())
-}
 
 #[derive(Template)]
 #[template(path = "partials/coop.html")]
@@ -246,7 +237,7 @@ async fn coop(
     } else { (None, None) };
 
     let template = CoopTemplate {
-        seed,
+        seed: seed.clone(),
         next_seed,
         mission,
         nested_mission,
@@ -257,7 +248,7 @@ async fn coop(
         view_name: "coop".to_string(),
     };
 
-    render_response(headers, template.render().unwrap())
+    render_response(headers, template.render().unwrap(), Some(seed))
 }
 
 #[derive(Template)]
@@ -292,12 +283,12 @@ async fn solo(
         .collect();
 
     let template = SoloTemplate {
-        seed,
+        seed: seed.clone(),
         next_seed,
         missions: missions_data,
         view_name: "solo".to_string(),
     };
-    render_response(headers, template.render().unwrap())
+    render_response(headers, template.render().unwrap(), Some(seed))
 }
 
 #[derive(Template)]
@@ -336,12 +327,12 @@ async fn randomizer(
     };
 
     let template = RandomizerTemplate {
-        seed,
+        seed: seed.clone(),
         next_seed,
         loadout,
         view_name: "randomizer".to_string(),
     };
-    render_response(headers, template.render().unwrap())
+    render_response(headers, template.render().unwrap(), Some(seed))
 }
 
 #[derive(Template)]
@@ -357,7 +348,7 @@ async fn all_missions(
     let template = AllMissionsTemplate {
         missions: &state.missions,
     };
-    render_response(headers, template.render().unwrap())
+    render_response(headers, template.render().unwrap(), None)
 }
 
 async fn mission_view(
@@ -380,12 +371,12 @@ async fn mission_view(
         let mission_display = resolve_mission_display(mission, &mut rng, &state);
 
         let template = SoloTemplate {
-            seed,
+            seed: seed.clone(),
             next_seed,
             missions: vec![mission_display],
             view_name: format!("mission/{}", percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC).to_string()),
         };
-        render_response(headers, template.render().unwrap())
+        render_response(headers, template.render().unwrap(), Some(seed))
 
     } else {
         Html("<h1>Mission Not Found</h1>".to_string())
@@ -414,9 +405,9 @@ fn find_mission(data: &MissionsData, name: &str) -> Option<Mission> {
 #[template(path = "traitor_setup.html")]
 struct TraitorSetupTemplate;
 
-async fn traitor_setup() -> Html<String> {
+async fn traitor_setup(headers: HeaderMap) -> Html<String> {
     let template = TraitorSetupTemplate;
-    Html(template.render().unwrap())
+    render_response(headers, template.render().unwrap(), None)
 }
 
 async fn traitor_create(State(state): State<AppState>) -> Redirect {
@@ -512,6 +503,7 @@ async fn traitor_lobby_view(
     State(state): State<AppState>,
     axum::extract::Path(room_id): axum::extract::Path<String>,
     Query(params): Query<LobbyQuery>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
     let mut lobbies = state.lobbies.write().unwrap();
     if let Some(lobby) = lobbies.get_mut(&room_id) {
@@ -542,7 +534,9 @@ async fn traitor_lobby_view(
             players: lobby.players.clone(),
             is_started: false,
         };
-        return Html(template.render().unwrap()).into_response();
+        // We might want to pass view_name: "traitor" here if we want the pill selector to work in the lobby
+        // but for now, the user mostly cares about the swipe navigation between the main game modes.
+        return render_response(headers, template.render().unwrap(), None).into_response();
     }
     (StatusCode::NOT_FOUND, "Lobby not found").into_response()
 }
@@ -710,6 +704,7 @@ async fn traitor_role_view(
     State(state): State<AppState>,
     axum::extract::Path(room_id): axum::extract::Path<String>,
     Query(params): Query<LobbyQuery>,
+    headers: HeaderMap,
 ) -> impl IntoResponse {
     let lobbies = state.lobbies.read().unwrap();
     if let Some(lobby) = lobbies.get(&room_id) {
@@ -732,7 +727,7 @@ async fn traitor_role_view(
                 player_name: player.name.clone(),
                 mission,
             };
-            return Html(template.render().unwrap()).into_response();
+            return render_response(headers, template.render().unwrap(), Some(lobby.seed.clone())).into_response();
         }
         return (StatusCode::FORBIDDEN, "Player not in lobby").into_response();
     }

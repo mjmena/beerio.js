@@ -1,0 +1,44 @@
+<div id="pill-selector"
+  class="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex bg-white/80 backdrop-blur-md p-1 rounded-full shadow-lg border border-slate-200 pointer-events-auto">
+  <button id="pill-randomizer" class="px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200"
+    hx-get="/{{ seed }}/randomizer" hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true"
+    onclick="setActivePill('randomizer')">
+    Randomizer
+  </button>
+  <button id="pill-solo" class="px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200"
+    hx-get="/{{ seed }}/solo" hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true"
+    onclick="setActivePill('solo')">
+    Solo
+  </button>
+  <button id="pill-coop" class="px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200"
+    hx-get="/{{ seed }}/coop" hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true"
+    onclick="setActivePill('coop')">
+    Coop
+  </button>
+  <button id="pill-traitor" class="px-4 py-1.5 rounded-full text-sm font-medium transition-all duration-200"
+    hx-get="/traitor/create" hx-target="#app-content" hx-push-url="true" hx-swap="innerHTML transition:true"
+    onclick="setActivePill('traitor')">
+    Traitor
+  </button>
+</div>
+
+<style>
+  .pill-active {
+    background-color: #3b82f6;
+    /* blue-500 */
+    color: white;
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+  }
+
+  .pill-inactive {
+    color: #64748b;
+    /* slate-500 */
+  }
+
+  .pill-inactive:hover {
+    background-color: #f1f5f9;
+    /* slate-100 */
+    color: #1e293b;
+    /* slate-800 */
+  }
+</style>
