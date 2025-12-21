@@ -1,10 +1,9 @@
 use axum::{
-    extract::{Query, State, Form},
+    extract::{State, Query, Form},
     response::{Html, Redirect, IntoResponse},
     routing::{get, post},
     http::{HeaderMap, StatusCode},
     Router,
-    Json,
 };
 use axum::response::Response;
 use serde::Deserialize;
@@ -15,12 +14,10 @@ use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use percent_encoding::{percent_decode_str, NON_ALPHANUMERIC};
 use axum::response::sse::{Event, Sse};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
-use futures::stream::Stream;
 use std::convert::Infallible;
 
 mod model;
@@ -59,12 +56,6 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-#[derive(Deserialize)]
-struct ViewParams {
-    view: Option<String>,
-    seed: Option<String>,
-}
-
 // IndexTemplate removed as it was unused and caused compilation errors (missing seed)
 
 async fn root() -> axum::response::Redirect {
@@ -99,8 +90,6 @@ async fn seed_redirect(
 #[derive(Template)]
 #[template(path = "partials/coop.html")]
 struct CoopTemplate {
-    seed: String,
-    next_seed: String,
     mission: Mission,
     // We might need to pass nested data for complex missions
     nested_mission: Option<Mission>,
@@ -189,7 +178,6 @@ async fn coop(
     std::hash::Hash::hash(&seed, &mut hasher);
     let seed_u64 = std::hash::Hasher::finish(&hasher);
     let mut rng = StdRng::seed_from_u64(seed_u64);
-    let next_seed = rand::thread_rng().gen::<u32>().to_string();
 
     let missions = &state.missions.coop_granprix;
     let mission = missions.choose(&mut rng).unwrap().clone();
@@ -237,8 +225,6 @@ async fn coop(
     } else { (None, None) };
 
     let template = CoopTemplate {
-        seed: seed.clone(),
-        next_seed,
         mission,
         nested_mission,
         random_item_img,
@@ -254,8 +240,6 @@ async fn coop(
 #[derive(Template)]
 #[template(path = "partials/solo.html")]
 struct SoloTemplate {
-    seed: String,
-    next_seed: String,
     missions: Vec<MissionDisplayData>,
     view_name: String,
 }
@@ -269,7 +253,6 @@ async fn solo(
     std::hash::Hash::hash(&seed, &mut hasher);
     let seed_u64 = std::hash::Hasher::finish(&hasher);
     let mut rng = StdRng::seed_from_u64(seed_u64);
-    let next_seed = rand::thread_rng().gen::<u32>().to_string();
     
     // Choose 2 unique missions
     let amount = 2;
@@ -283,8 +266,6 @@ async fn solo(
         .collect();
 
     let template = SoloTemplate {
-        seed: seed.clone(),
-        next_seed,
         missions: missions_data,
         view_name: "solo".to_string(),
     };
@@ -294,8 +275,6 @@ async fn solo(
 #[derive(Template)]
 #[template(path = "partials/randomizer.html")]
 struct RandomizerTemplate {
-    seed: String,
-    next_seed: String,
     loadout: Loadout,
     view_name: String,
 }
@@ -308,7 +287,6 @@ async fn randomizer(
     std::hash::Hash::hash(&seed, &mut hasher);
     let seed_u64 = std::hash::Hasher::finish(&hasher);
     let mut rng = StdRng::seed_from_u64(seed_u64);
-    let next_seed = rand::thread_rng().gen::<u32>().to_string();
     
     let c = model::CHARACTERS.choose(&mut rng).unwrap();
     let k = model::KARTS.choose(&mut rng).unwrap();
@@ -327,8 +305,6 @@ async fn randomizer(
     };
 
     let template = RandomizerTemplate {
-        seed: seed.clone(),
-        next_seed,
         loadout,
         view_name: "randomizer".to_string(),
     };
@@ -366,13 +342,10 @@ async fn mission_view(
         std::hash::Hash::hash(&seed, &mut hasher);
         let seed_u64 = std::hash::Hasher::finish(&hasher);
         let mut rng = StdRng::seed_from_u64(seed_u64);
-        let next_seed = rand::thread_rng().gen::<u32>().to_string();
 
         let mission_display = resolve_mission_display(mission, &mut rng, &state);
 
         let template = SoloTemplate {
-            seed: seed.clone(),
-            next_seed,
             missions: vec![mission_display],
             view_name: format!("mission/{}", percent_encoding::utf8_percent_encode(&name, percent_encoding::NON_ALPHANUMERIC).to_string()),
         };
@@ -422,7 +395,6 @@ async fn traitor_create(State(state): State<AppState>) -> Redirect {
     let (tx, _rx) = broadcast::channel(100);
 
     let lobby = Lobby {
-        id: room_id.clone(),
         players: Vec::new(),
         status: LobbyStatus::Waiting,
         seed: rand::thread_rng().gen::<u32>().to_string(),
@@ -491,7 +463,6 @@ struct TraitorLobbyTemplate {
     room_id: String,
     player_name: String,
     players: Vec<Player>,
-    is_started: bool,
 }
 
 #[derive(Deserialize)]
@@ -532,7 +503,6 @@ async fn traitor_lobby_view(
             room_id,
             player_name,
             players: lobby.players.clone(),
-            is_started: false,
         };
         // We might want to pass view_name: "traitor" here if we want the pill selector to work in the lobby
         // but for now, the user mostly cares about the swipe navigation between the main game modes.
@@ -609,14 +579,6 @@ async fn traitor_lobby_sse(
                  Ok(LobbyEvent::PlayerLeft(name)) => {
                      let script = format!("<div id='player-{}' hx-swap-oob='delete'></div>", name);
                      Ok::<Event, Infallible>(Event::default().event("player_left").data(script))
-                 },
-                 Ok(LobbyEvent::PlayerNameChanged(_old, _new)) => {
-                     // Handled by Leave/Join sequence in handler for simplicity?
-                     // Or just keep this event but don't use it if we change handler logic?
-                     // The USER wants "player leave and player join event in that case".
-                     // So we should emit PlayerLeft(old) and PlayerJoined(new) events in the handler.
-                     // And remove this custom event handling if not needed.
-                     Ok::<Event, Infallible>(Event::default())
                  },
                  Ok(LobbyEvent::GameStarted) => {
                      Ok::<Event, Infallible>(Event::default().event("game_start").data("started"))
@@ -695,7 +657,6 @@ async fn traitor_change_name_action(
 #[template(path = "traitor_role.html")]
 struct TraitorRoleTemplate {
     is_traitor: bool,
-    role_name: String,
     player_name: String,
     mission: Mission,
 }
@@ -723,7 +684,6 @@ async fn traitor_role_view(
             
             let template = TraitorRoleTemplate {
                 is_traitor: player.is_traitor,
-                role_name: if player.is_traitor { "Traitor".to_string() } else { "Innocent".to_string() },
                 player_name: player.name.clone(),
                 mission,
             };

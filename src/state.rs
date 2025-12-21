@@ -9,7 +9,6 @@ use serde::{Serialize, Deserialize};
 pub enum LobbyEvent {
     PlayerJoined(String),
     PlayerLeft(String),
-    PlayerNameChanged(String, String),
     GameStarted,
 }
 
@@ -27,7 +26,6 @@ pub struct Player {
 
 #[derive(Clone, Debug)]
 pub struct Lobby {
-    pub id: String,
     pub players: Vec<Player>,
     pub status: LobbyStatus,
     pub seed: String,
